@@ -1,0 +1,280 @@
+/* =========================
+   📱 ORGANIZED APPS
+========================= */
+
+.organized-apps-container {
+  width: 100%;
+}
+
+.apps-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.apps-header .section-heading {
+  margin: 0;
+}
+
+.apps-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.edit-mode-btn,
+.reset-order-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.edit-mode-btn:hover,
+.reset-order-btn:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.edit-mode-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.reset-order-btn {
+  padding: 8px 12px;
+  font-size: 1.2rem;
+}
+
+.edit-mode-hint {
+  background: rgba(74, 144, 226, 0.1);
+  border-left: 3px solid var(--accent);
+  padding: 12px 16px;
+  margin: 0 0 20px 0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+/* =========================
+   📦 CATEGORY SECTIONS
+========================= */
+
+.app-category-section {
+  margin-bottom: 2.5rem;
+}
+
+.app-category-section:last-child {
+  margin-bottom: 0;
+}
+
+.category-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 16px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.85rem;
+}
+
+/* =========================
+   🎯 APP GRID & WRAPPERS
+========================= */
+
+.apps-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 120px);
+  gap: 20px;
+  justify-content: flex-start;
+}
+
+@media (max-width: 768px) {
+  .apps-grid {
+    grid-template-columns: repeat(3, 120px);
+  }
+}
+
+@media (max-width: 480px) {
+  .apps-grid {
+    grid-template-columns: repeat(2, 120px);
+  }
+}
+
+.app-wrapper {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-wrapper.draggable {
+  cursor: move;
+  user-select: none;
+  -webkit-user-drag: element;
+}
+
+/* In edit mode, ensure only wrapper receives drag events */
+.app-wrapper.draggable .app-card {
+  cursor: move;
+}
+
+.app-wrapper.draggable .app-card * {
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none; /* Children don't intercept events */
+}
+
+/* But allow events to bubble up from the card itself */
+.app-wrapper.draggable {
+  pointer-events: auto;
+}
+
+.app-wrapper.draggable:hover {
+  transform: scale(1.05);
+  z-index: 10;
+}
+
+.app-wrapper.draggable:active {
+  cursor: grabbing;
+}
+
+/* Being dragged - hide original */
+.app-wrapper.is-dragging {
+  opacity: 0.3;
+  z-index: 1;
+}
+
+/* Drag ghost - the element that follows the cursor */
+.drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.9;
+  transform: rotate(-3deg) scale(1.05);
+  transition: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* Drag over state - show where item will drop */
+.app-wrapper.drag-over {
+  transform: translateX(140px);
+  transition: transform 0.3s ease;
+}
+
+/* Placeholder for drop position */
+.app-placeholder {
+  width: 120px;
+  height: 110px;
+  border: 3px dashed var(--accent);
+  border-radius: 10px;
+  background: rgba(74, 144, 226, 0.1);
+  animation: pulse 1.5s ease-in-out infinite;
+  position: relative;
+}
+
+.app-placeholder::after {
+  content: "Soltar aquí";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.75rem;
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+}
+
+/* Drag handle indicator */
+.drag-handle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  letter-spacing: -2px;
+}
+
+[data-theme="dark"] .drag-handle {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.app-wrapper.draggable:hover .drag-handle {
+  opacity: 1;
+}
+
+/* Visual feedback during drag */
+.app-wrapper.dragging {
+  opacity: 0.5;
+}
+
+/* =========================
+   📱 RESPONSIVE
+========================= */
+
+@media (max-width: 768px) {
+  .apps-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .apps-controls {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .edit-mode-btn,
+  .reset-order-btn {
+    font-size: 0.85rem;
+    padding: 6px 12px;
+  }
+
+  .edit-mode-hint {
+    font-size: 0.85rem;
+    padding: 10px 12px;
+  }
+
+  .category-title {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .apps-grid {
+    justify-content: center;
+  }
+}

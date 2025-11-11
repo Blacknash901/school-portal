@@ -1,13 +1,51 @@
+/* Fix overscroll background to match theme */
+html {
+  background: var(--bg, #fafafa);
+  transition: background 0.3s ease;
+}
+
+[data-theme="dark"] html {
+  background: var(--bg, #1b2533);
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: var(--bg, #fafafa);
+  transition: background 0.3s ease;
+}
+
+[data-theme="dark"] body {
+  background: var(--bg, #1b2533);
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
+}
+
+/* splash screen */
+.splash-screen {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* light theme */
+.splash-screen.light {
+  background-color: var(--bg, #fafafa);
+  color: var(--muted, #666);
+}
+
+/* dark theme */
+.splash-screen.dark {
+  background-color: var(--bg, #1b2533);
+  color: var(--muted, #9ea9b6);
 }

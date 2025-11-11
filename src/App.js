@@ -1,24 +1,20 @@
-import logo from './logo.svg';
-import './App.css';
+// src/App.js
+import React from "react";
+import { MsalProvider } from "@azure/msal-react";
+import { pca } from "./auth/msalInstance";
+import Content from "./components/Content";
+import ErrorBoundary from "./components/ErrorBoundary";
+//import S3LoggingDebug from "./components/S3LoggingDebug";
 
 function App() {
+  // MsalProvider handles initialization and redirects automatically
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <MsalProvider instance={pca}>
+      <ErrorBoundary>
+        <Content />
+        {/*   <S3LoggingDebug>  */}
+      </ErrorBoundary>
+    </MsalProvider>
   );
 }
 

@@ -1,0 +1,74 @@
+.skeleton-line,
+.skeleton-circle {
+  background: linear-gradient(
+    90deg,
+    var(--card-border) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    var(--card-border) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-circle {
+  border-radius: 50%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* News Card Skeleton */
+.news-card-skeleton {
+  padding: 1rem;
+  background: var(--card-bg);
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  margin-bottom: 1rem;
+}
+
+.skeleton-title {
+  height: 20px;
+  width: 80%;
+  margin-bottom: 0.75rem;
+}
+
+.skeleton-text {
+  height: 14px;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-text.short {
+  width: 60%;
+}
+
+/* App Card Skeleton */
+.app-card-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 120px;
+  min-height: 110px;
+  padding: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+}
+
+.app-card-skeleton .skeleton-circle {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-app-name {
+  height: 14px;
+  width: 80%;
+}

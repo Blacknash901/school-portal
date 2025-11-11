@@ -1,0 +1,104 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  DOCKER_REGISTRY: blacknash/cecre
+  NODE_VERSION: "18"
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --coverage --watchAll=false
+        continue-on-error: true
+
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Build and push Docker image (multi-arch)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}:${{ steps.version.outputs.version }}
+            ${{ env.DOCKER_REGISTRY }}:latest
+          build-args: |
+            REACT_APP_MSAL_CLIENT_ID=${{ secrets.REACT_APP_MSAL_CLIENT_ID }}
+            REACT_APP_MSAL_TENANT_ID=${{ secrets.REACT_APP_MSAL_TENANT_ID }}
+            REACT_APP_AZURE_CLIENT_ID=${{ secrets.REACT_APP_AZURE_CLIENT_ID }}
+            REACT_APP_AZURE_TENANT_ID=${{ secrets.REACT_APP_AZURE_TENANT_ID }}
+            REACT_APP_REDIRECT_URI=${{ secrets.REACT_APP_REDIRECT_URI }}
+            REACT_APP_S3_BUCKET_NAME=${{ secrets.REACT_APP_S3_BUCKET_NAME }}
+            REACT_APP_S3_REGION=${{ secrets.REACT_APP_S3_REGION }}
+            REACT_APP_S3_ACCESS_KEY_ID=${{ secrets.REACT_APP_S3_ACCESS_KEY_ID }}
+            REACT_APP_S3_SECRET_ACCESS_KEY=${{ secrets.REACT_APP_S3_SECRET_ACCESS_KEY }}
+          cache-from: type=registry,ref=${{ env.DOCKER_REGISTRY }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_REGISTRY }}:buildcache,mode=max
+
+      - name: Build summary
+        run: |
+          echo "✅ Docker image built and pushed successfully!"
+          echo "📦 Image: ${{ env.DOCKER_REGISTRY }}:${{ steps.version.outputs.version }}"
+          echo "📦 Image: ${{ env.DOCKER_REGISTRY }}:latest"
+          echo "🏗️  Architectures: linux/amd64, linux/arm64"
+
+  # Optional: Add deployment job here
+  # deploy:
+  #   name: Deploy to Production
+  #   runs-on: ubuntu-latest
+  #   needs: build
+  #   if: github.ref == 'refs/heads/main'
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Deploy
+  #       run: |
+  #         # Add your deployment commands here
+  #         # e.g., kubectl apply, ansible-playbook, etc.
+  #         echo "Deploying to production..."
