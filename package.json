@@ -1,6 +1,6 @@
 {
   "name": "school-portal",
-  "version": "1.0.14",
+  "version": "1.0.16",
   "private": true,
   "dependencies": {
     "@azure/msal-browser": "^4.25.1",
