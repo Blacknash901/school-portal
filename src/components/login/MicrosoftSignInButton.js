@@ -1,6 +1,7 @@
 import React from "react";
 import { useMsal } from "@azure/msal-react";
 import { logEvent, LOG_TYPES } from "../../utils/logger";
+import microsoftImage from "../../assets/images/microsoft.png";
 
 /**
  * Branded Microsoft sign-in button using MSAL.
@@ -82,18 +83,13 @@ export default function MicrosoftSignInButton({
       aria-label={label}
       type="button"
     >
-      <svg
+      <img
+        src={microsoftImage}
+        alt="Microsoft"
         width="20"
         height="20"
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <rect x="1" y="1" width="10" height="10" fill="#F35325" />
-        <rect x="13" y="1" width="10" height="10" fill="#81BC06" />
-        <rect x="1" y="13" width="10" height="10" fill="#05A6F0" />
-        <rect x="13" y="13" width="10" height="10" fill="#FFBA08" />
-      </svg>
+        style={{ display: "block" }}
+      />
 
       <span>
         {isLoggingIn || inProgress !== "none" ? "Signing in..." : label}

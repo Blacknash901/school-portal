@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import googleImage from "../../assets/images/google.png";
 
 /**
  * GoogleSignInButton
@@ -124,13 +125,13 @@ export default function GoogleSignInButton({
       aria-label={label}
       type="button"
     >
-      {/* Google "G" glyph */}
-      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path fill="#EA4335" d="M12 11.5v3.5h5.1c-.2 1-1.1 3-3.1 4.2l-.1.1 4.5.4C20.3 20 23 16.8 23 12c0-.7-.1-1.4-.2-2H12z" />
-        <path fill="#34A853" d="M6.3 14.3l-1.1.9C3.6 12.8 3 10.5 3 8s.6-4.8 2.2-6.2L8 4.9C7.7 5.7 7.6 6.8 7.6 8s.1 2.3.7 3.3z" />
-        <path fill="#FBBC05" d="M12 4.5c1.6 0 2.8.6 3.6 1.1l2.5-2.5C16.8 1.1 14.5 0 12 0 7.7 0 4.1 2.3 2.2 5.8l2.5 1.9C6.6 6 9 4.5 12 4.5z" />
-        <path fill="#4285F4" d="M23 12c0 .8-.1 1.5-.2 2H12V9.5h6.1c-.4-1.4-1.4-2.6-2.9-3.4l-.1-.1-4.5.4C9.5 7.6 8.3 9.9 8.3 12s1.2 4.4 3.1 5.6c2.1 1.4 4.8 1.4 6.6.2 1.6-1 2.4-2.2 3-3 0 0 0 0 0 0 0 0 0 0 0 0z" />
-      </svg>
+      <img
+        src={googleImage}
+        alt="Google"
+        width="20"
+        height="20"
+        style={{ display: "block" }}
+      />
 
       <span>{label}</span>
     </button>
