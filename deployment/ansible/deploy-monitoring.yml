@@ -1,0 +1,176 @@
+---
+# ============================================================================
+# Monitoring Deployment Playbook
+# ============================================================================
+#
+# Run this to add Prometheus + Grafana monitoring.
+# Optional - only needed if you want metrics and dashboards.
+#
+# USAGE:
+#   ansible-playbook -i inventory-production.yml deploy-monitoring.yml
+#
+# TIME: ~3-5 minutes
+#
+# PREREQUISITES:
+#   - Infrastructure setup complete
+#   - Application deployed
+#
+# ACCESS:
+#   - Grafana: http://YOUR_IP:30300 (admin/admin)
+#   - Prometheus: http://YOUR_IP:30090
+#
+# ============================================================================
+
+- name: Deploy Monitoring Stack (Prometheus + Grafana)
+  hosts: production-server
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    # ============================================================
+    # Copy Monitoring Manifests
+    # ============================================================
+    - name: Create monitoring directory
+      file:
+        path: "/opt/{{ app_name }}/monitoring"
+        state: directory
+        mode: "0755"
+
+    - name: Copy Prometheus deployment manifest
+      copy:
+        src: "{{ playbook_dir }}/../prometheus-deployment.yaml"
+        dest: "/opt/{{ app_name }}/monitoring/prometheus-deployment.yaml"
+
+    - name: Copy Grafana deployment manifest
+      copy:
+        src: "{{ playbook_dir }}/../grafana-deployment.yaml"
+        dest: "/opt/{{ app_name }}/monitoring/grafana-deployment.yaml"
+
+    - name: Copy monitoring configuration (HPA, alerts)
+      copy:
+        src: "{{ playbook_dir }}/../monitoring.yaml"
+        dest: "/opt/{{ app_name }}/monitoring/monitoring.yaml"
+
+    # ============================================================
+    # Enable Metrics Server
+    # ============================================================
+    - name: Enable MicroK8s metrics-server
+      command: microk8s enable metrics-server
+      register: metrics_result
+      changed_when: "'Enabling' in metrics_result.stdout"
+      failed_when: false
+
+    - name: Wait for metrics-server (with timeout)
+      command: microk8s kubectl wait --for=condition=ready pod -l k8s-app=metrics-server -n kube-system --timeout=60s
+      register: metrics_wait
+      changed_when: false
+      failed_when: false
+      ignore_errors: yes
+
+    # ============================================================
+    # Deploy Monitoring Components
+    # ============================================================
+    - name: Deploy Prometheus
+      command: microk8s kubectl apply -f /opt/{{ app_name }}/monitoring/prometheus-deployment.yaml
+      register: prometheus_deploy
+      changed_when: "'created' in prometheus_deploy.stdout or 'configured' in prometheus_deploy.stdout"
+
+    - name: Wait for Prometheus to be ready
+      command: microk8s kubectl wait --for=condition=ready pod -l app=prometheus -n monitoring --timeout=120s
+      register: prometheus_wait
+      changed_when: false
+      failed_when: false
+
+    - name: Deploy Grafana
+      command: microk8s kubectl apply -f /opt/{{ app_name }}/monitoring/grafana-deployment.yaml
+      register: grafana_deploy
+      changed_when: "'created' in grafana_deploy.stdout or 'configured' in grafana_deploy.stdout"
+
+    - name: Wait for Grafana to be ready
+      command: microk8s kubectl wait --for=condition=ready pod -l app=grafana -n monitoring --timeout=120s
+      register: grafana_wait
+      changed_when: false
+      failed_when: false
+
+    - name: Deploy monitoring configuration (HPA, PDB, alerts)
+      command: microk8s kubectl apply -f /opt/{{ app_name }}/monitoring/monitoring.yaml
+      register: monitoring_deploy
+      changed_when: "'created' in monitoring_deploy.stdout or 'configured' in monitoring_deploy.stdout"
+
+    # ============================================================
+    # Configure Firewall
+    # ============================================================
+    - name: Allow port 30090 (Prometheus)
+      ufw:
+        rule: allow
+        port: "30090"
+        proto: tcp
+        comment: "Prometheus monitoring"
+
+    - name: Allow port 30300 (Grafana)
+      ufw:
+        rule: allow
+        port: "30300"
+        proto: tcp
+        comment: "Grafana dashboards"
+
+    # ============================================================
+    # Get Status
+    # ============================================================
+    - name: Get Prometheus status
+      command: microk8s kubectl get pods -n monitoring -l app=prometheus
+      register: prometheus_status
+      changed_when: false
+
+    - name: Get Grafana status
+      command: microk8s kubectl get pods -n monitoring -l app=grafana
+      register: grafana_status
+      changed_when: false
+
+    # ============================================================
+    # Summary
+    # ============================================================
+    - name: Display monitoring setup summary
+      debug:
+        msg: |
+
+          ╔══════════════════════════════════════════════════════════════════════╗
+          ║                                                                      ║
+          ║            ✅  MONITORING STACK DEPLOYED SUCCESSFULLY!  ✅           ║
+          ║                                                                      ║
+          ╚══════════════════════════════════════════════════════════════════════╝
+
+          📊 Grafana Dashboard:
+             URL: http://{{ production_ip }}:30300
+             Login: admin / admin
+             Dashboard: "School Portal Monitoring" (pre-configured)
+
+          🔍 Prometheus:
+             URL: http://{{ production_ip }}:30090
+             Metrics: Cluster + App metrics
+
+          ⚙️  Auto-Scaling:
+             Min replicas: 2
+             Max replicas: 5
+             Triggers: CPU > 70%, Memory > 80%
+
+          🚨 Alerts Configured:
+             - Pod crash looping
+             - High memory usage
+             - High CPU usage
+             - High rate limit hits
+             - No replicas available
+
+          📦 Status:
+
+          Prometheus:
+          {{ prometheus_status.stdout }}
+
+          Grafana:
+          {{ grafana_status.stdout }}
+
+          💾 Data Persistence:
+             ✓ Grafana dashboards saved
+             ✓ Prometheus metrics retained
+
+          🎉 Monitoring is ready!

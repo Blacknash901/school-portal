@@ -1,0 +1,21 @@
+all:
+  hosts:
+    production-server:
+      ansible_connection: local
+      ansible_python_interpreter: /usr/bin/python3
+      ansible_become: true
+      ansible_become_method: sudo
+      ansible_become_password: ""
+      ansible_become_flags: "-n"
+
+  vars:
+    app_name: school-portal
+    app_version: "1.0.16"
+    docker_registry: blacknash/cecre
+
+    production_ip: 192.168.0.134
+    production_domain: portal.cecre.net
+    use_ip: false
+    use_https: true
+    letsencrypt_email: jmadriz@cecre.net
+    k8s_namespace: default

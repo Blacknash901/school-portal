@@ -1,0 +1,179 @@
+---
+# ============================================================================
+# Infrastructure Setup Playbook
+# ============================================================================
+#
+# Run this ONCE when setting up a new server.
+# Installs: Docker, MicroK8s, system packages
+#
+# USAGE:
+#   ansible-playbook -i inventory-production.yml setup-infrastructure.yml
+#
+# TIME: ~5-8 minutes
+#
+# ============================================================================
+
+- name: Setup Infrastructure (Docker + MicroK8s)
+  hosts: production-server
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    # ============================================================
+    # System Packages
+    # ============================================================
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required system packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - python3-pip
+          - rsync
+        state: present
+
+    # ============================================================
+    # Docker
+    # ============================================================
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Detect system architecture
+      set_fact:
+        docker_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch={{ docker_arch }}] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    # ============================================================
+    # MicroK8s
+    # ============================================================
+    - name: Install snapd
+      apt:
+        name: snapd
+        state: present
+
+    - name: Install MicroK8s via snap
+      snap:
+        name: microk8s
+        classic: yes
+        channel: "1.28/stable"
+
+    - name: Wait for MicroK8s to be ready
+      command: microk8s status --wait-ready
+      changed_when: false
+      timeout: 300
+
+    - name: Enable MicroK8s addons
+      command: "microk8s enable {{ item }}"
+      loop:
+        - dns
+        - storage
+        - ingress
+      register: addon_result
+      changed_when: "'Enabling' in addon_result.stdout"
+
+    - name: Add user to microk8s group
+      user:
+        name: "{{ ansible_user }}"
+        groups: microk8s
+        append: yes
+
+    - name: Create kubectl alias
+      lineinfile:
+        path: "/home/{{ ansible_user }}/.bashrc"
+        line: "alias kubectl='microk8s kubectl'"
+        create: yes
+
+    - name: Set up kubectl config
+      shell: |
+        mkdir -p /home/{{ ansible_user }}/.kube
+        microk8s config > /home/{{ ansible_user }}/.kube/config
+        chown -R {{ ansible_user }}:{{ ansible_user }} /home/{{ ansible_user }}/.kube
+      args:
+        creates: "/home/{{ ansible_user }}/.kube/config"
+
+    # ============================================================
+    # Firewall (Basic Setup)
+    # ============================================================
+    - name: Allow SSH (CRITICAL!)
+      ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+        comment: "SSH access"
+
+    - name: Allow HTTP traffic
+      ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+        comment: "HTTP traffic"
+
+    - name: Allow HTTPS traffic
+      ufw:
+        rule: allow
+        port: "443"
+        proto: tcp
+        comment: "HTTPS traffic"
+
+    - name: Allow Kubernetes NodePort range
+      ufw:
+        rule: allow
+        from_ip: any
+        to_port: "30000:32767"
+        proto: tcp
+        comment: "Kubernetes NodePort range"
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+
+    # ============================================================
+    # Summary
+    # ============================================================
+    - name: Display infrastructure setup summary
+      debug:
+        msg: |
+
+          ✅ Infrastructure Setup Complete!
+
+          Installed:
+            - Docker
+            - MicroK8s with dns, storage, ingress
+            - Firewall configured
+
+          Next steps:
+            1. Deploy app: ansible-playbook -i inventory-production.yml deploy-app.yml
+            2. Or add monitoring: ansible-playbook -i inventory-production.yml deploy-monitoring.yml

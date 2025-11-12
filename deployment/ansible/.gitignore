@@ -1,0 +1,8 @@
+# Ansible
+*.retry
+.vault_pass
+*.log
+
+# Sensitive files
+inventory_production.yml
+

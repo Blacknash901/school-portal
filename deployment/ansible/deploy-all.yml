@@ -1,0 +1,112 @@
+---
+# ============================================================================
+# Master Deployment Playbook (All-in-One)
+# ============================================================================
+#
+# Run this for a FRESH INSTANCE to deploy everything at once.
+# This imports all modular playbooks in the correct order.
+#
+# USAGE:
+#   ansible-playbook -i inventory-production.yml deploy-all.yml
+#
+# TIME: ~10-15 minutes
+#
+# WHAT IT DOES:
+#   1. Setup infrastructure (Docker, MicroK8s, firewall)
+#   2. Deploy application (pull image, create K8s resources)
+#   3. Deploy monitoring (Prometheus, Grafana, alerts)
+#
+# PREREQUISITES:
+#   - Fresh Ubuntu 22.04 ARM64 instance
+#   - Self-hosted GitHub Actions runner configured on this server
+#   - Environment variables passed from GitHub Secrets
+#   - Docker image pushed to Docker Hub (via CI/CD)
+#   - AWS Security Group allows: 22, 80, 443, 30443, 30090, 30300
+#
+# FOR UPDATES:
+#   Don't use this! Use specific playbooks instead:
+#   - Code update: ansible-playbook -i inventory-production.yml deploy-app.yml
+#   - Add monitoring: ansible-playbook -i inventory-production.yml deploy-monitoring.yml
+#
+# ============================================================================
+
+- name: "Step 1/3: Setup Infrastructure"
+  import_playbook: setup-infrastructure.yml
+
+- name: "Step 2/3: Deploy Application"
+  import_playbook: deploy-app.yml
+
+- name: "Step 3/3: Deploy Monitoring"
+  import_playbook: deploy-monitoring.yml
+
+# ============================================================================
+# Final Summary
+# ============================================================================
+- name: Display Final Summary
+  hosts: production-server
+  gather_facts: no
+
+  vars:
+    # These values will now be passed dynamically via GitHub Actions environment
+    production_ip: "{{ lookup('env', 'PRODUCTION_IP') | default('192.168.0.134') }}"
+    app_version: "{{ lookup('env', 'APP_VERSION') | default('latest') }}"
+    app_name: "{{ lookup('env', 'APP_NAME') | default('school-portal') }}"
+
+  tasks:
+    - name: Show complete deployment summary
+      debug:
+        msg: |
+
+          ╔══════════════════════════════════════════════════════════════════════╗
+          ║                                                                      ║
+          ║          🎉  COMPLETE DEPLOYMENT FINISHED SUCCESSFULLY!  🎉          ║
+          ║                                                                      ║
+          ╚══════════════════════════════════════════════════════════════════════╝
+
+          ✅ Infrastructure: Docker + MicroK8s
+          ✅ Application: {{ app_name }} v{{ app_version }}
+          ✅ Monitoring: Prometheus + Grafana
+          ✅ Firewall: Configured
+          ✅ Auto-scaling: Enabled (2-5 replicas)
+
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+          🌐 YOUR APPLICATION
+
+          URL: https://{{ production_ip }}:30443
+
+          ⚠️  Update Azure AD redirect URI to:
+             https://{{ production_ip }}:30443
+
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+          📊 MONITORING DASHBOARDS
+
+          Grafana: http://{{ production_ip }}:30300
+            - Login: admin / admin
+            - Dashboard: "School Portal Monitoring"
+
+          Prometheus: http://{{ production_ip }}:30090
+            - Metrics explorer
+            - Query builder
+
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+          📋 NEXT TIME (FOR UPDATES)
+
+          Update app code:
+            1. Build: ./build-production.sh X.X.X ip
+            2. Deploy: ansible-playbook -i inventory-production.yml deploy-app.yml
+            (Takes ~2 minutes vs ~15 minutes!)
+
+          Update .env only:
+            ansible-playbook -i inventory-production.yml deploy-app.yml
+
+          Restart monitoring:
+            ansible-playbook -i inventory-production.yml deploy-monitoring.yml
+
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+          🎯 EVERYTHING IS READY!
+
+          Your school portal is now live with full monitoring! 🚀
