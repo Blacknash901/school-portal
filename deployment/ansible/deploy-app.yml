@@ -106,21 +106,21 @@
 
     - name: Create or update Kubernetes secret
       shell: |
-        microk8s kubectl create secret generic school-portal-secrets \
+        /snap/bin//snap/bin/microk8s kubectl create secret generic school-portal-secrets \
           --from-env-file={{ app_path }}/.env.k8s \
           --namespace={{ k8s_namespace }} \
-          --dry-run=client -o yaml | microk8s kubectl apply -f -
+          --dry-run=client -o yaml | /snap/bin//snap/bin/microk8s kubectl apply -f -
       args:
         executable: /bin/bash
       changed_when: true
 
     - name: Create or update SSL certificate ConfigMap
       shell: |
-        microk8s kubectl create configmap ssl-certs \
+        /snap/bin//snap/bin/microk8s kubectl create configmap ssl-certs \
           --from-file=cert.pem={{ certs_path }}/cert.pem \
           --from-file=key.pem={{ certs_path }}/key.pem \
           --namespace={{ k8s_namespace }} \
-          --dry-run=client -o yaml | microk8s kubectl apply -f -
+          --dry-run=client -o yaml | m/snap/bin//snap/bin/microk8s kubectl apply -f -
       args:
         executable: /bin/bash
       changed_when: true
@@ -130,7 +130,7 @@
     # ============================================================
     - name: Apply Kubernetes Deployment, Service, and Ingress
       shell: |
-        cat <<EOF | microk8s kubectl apply -f -
+        cat <<EOF | /snap/bin/microk8s kubectl apply -f -
         apiVersion: apps/v1
         kind: Deployment
         metadata:
@@ -243,23 +243,23 @@
     # Wait for Application Readiness
     # ============================================================
     - name: Wait for pods to be ready
-      command: microk8s kubectl wait --for=condition=ready pod -l app={{ app_name }} -n {{ k8s_namespace }} --timeout=120s
+      command: /snap/bin/microk8s kubectl wait --for=condition=ready pod -l app={{ app_name }} -n {{ k8s_namespace }} --timeout=120s
       register: pods_wait
       changed_when: false
       failed_when: false
 
     - name: Get deployment status
-      command: microk8s kubectl get pods -n {{ k8s_namespace }} -l app={{ app_name }}
+      command: /snap/bin/microk8s kubectl get pods -n {{ k8s_namespace }} -l app={{ app_name }}
       register: pods_status
       changed_when: false
 
     - name: Get service status
-      command: microk8s kubectl get svc {{ app_name }}-service -n {{ k8s_namespace }}
+      command: /snap/bin/microk8s kubectl get svc {{ app_name }}-service -n {{ k8s_namespace }}
       register: service_status
       changed_when: false
 
     - name: Get ingress status
-      command: microk8s kubectl get ingress {{ app_name }}-ingress -n {{ k8s_namespace }}
+      command: /snap/bin/microk8s kubectl get ingress {{ app_name }}-ingress -n {{ k8s_namespace }}
       register: ingress_status
       changed_when: false
 
