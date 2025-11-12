@@ -16,8 +16,9 @@ on:
         description: "App version (leave empty to use package.json version)"
         required: false
         type: string
+
   workflow_run:
-    workflows: ["Build and Push Docker Image"] # must match the `name:` of your build workflow
+    workflows: ["Build and Push Docker Image"] # name of your build workflow
     types:
       - completed
 
@@ -28,7 +29,9 @@ jobs:
   deploy:
     name: Deploy to Production
     runs-on: self-hosted
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: >
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success')
 
     steps:
       - name: Checkout repository
