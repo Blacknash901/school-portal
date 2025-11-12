@@ -3,8 +3,27 @@ name: Docker Build Pipeline
 on:
   push:
     branches: [main, master]
+    paths:
+      - "public/**"
+      - "src/**"
+      - ".dockerignore"
+      - "Dockerfile"
+      - "package.json"
+      - "package-lock.json"
+      - "server.js"
+      - "server-https.js"
+
   pull_request:
     branches: [main, master]
+    paths:
+      - "public/**"
+      - "src/**"
+      - ".dockerignore"
+      - "Dockerfile"
+      - "package.json"
+      - "package-lock.json"
+      - "server.js"
+      - "server-https.js"
 
 env:
   DOCKER_REGISTRY: blacknash/cecre
