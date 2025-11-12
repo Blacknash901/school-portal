@@ -22,6 +22,7 @@
 
 - name: Deploy School Portal Application
   hosts: production-server
+  connection: local # 👈 Force local execution
   become: yes
   gather_facts: yes
 
