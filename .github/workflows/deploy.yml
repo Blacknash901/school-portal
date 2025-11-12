@@ -1,0 +1,178 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_type:
+        description: 'Deployment type'
+        required: true
+        default: 'app'
+        type: choice
+        options:
+          - app
+          - all
+          - monitoring
+      app_version:
+        description: 'App version (leave empty to use package.json version)'
+        required: false
+        type: string
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/workflows/docker-build.yml'
+
+env:
+  DOCKER_REGISTRY: blacknash/cecre
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from package.json
+        id: version
+        run: |
+          VERSION="${{ github.event.inputs.app_version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "App version: $VERSION"
+
+      - name: Set deployment type
+        id: deploy_type
+        run: |
+          TYPE="${{ github.event.inputs.deploy_type }}"
+          if [ -z "$TYPE" ]; then
+            TYPE="app"
+          fi
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
+          echo "Deployment type: $TYPE"
+
+      - name: Generate .env file from GitHub secrets
+        run: |
+          cat > .env <<EOF
+          # Generated from GitHub Secrets - DO NOT COMMIT
+          # Azure Active Directory
+          REACT_APP_MSAL_CLIENT_ID=${{ secrets.REACT_APP_MSAL_CLIENT_ID }}
+          REACT_APP_MSAL_TENANT_ID=${{ secrets.REACT_APP_MSAL_TENANT_ID }}
+          REACT_APP_AZURE_CLIENT_ID=${{ secrets.REACT_APP_AZURE_CLIENT_ID }}
+          REACT_APP_AZURE_TENANT_ID=${{ secrets.REACT_APP_AZURE_TENANT_ID }}
+          REACT_APP_REDIRECT_URI=${{ secrets.REACT_APP_REDIRECT_URI }}
+          
+          # AWS S3 Logging
+          REACT_APP_S3_BUCKET_NAME=${{ secrets.REACT_APP_S3_BUCKET_NAME }}
+          REACT_APP_S3_REGION=${{ secrets.REACT_APP_S3_REGION }}
+          REACT_APP_S3_ACCESS_KEY_ID=${{ secrets.REACT_APP_S3_ACCESS_KEY_ID }}
+          REACT_APP_S3_SECRET_ACCESS_KEY=${{ secrets.REACT_APP_S3_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+          
+          # Sentry Error Tracking
+          REACT_APP_SENTRY_DSN=${{ secrets.REACT_APP_SENTRY_DSN }}
+          REACT_APP_SENTRY_ENVIRONMENT=${{ secrets.REACT_APP_SENTRY_ENVIRONMENT }}
+          REACT_APP_ENABLE_SENTRY=${{ secrets.REACT_APP_ENABLE_SENTRY }}
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          
+          # WordPress RSS Feed
+          REACT_APP_WORDPRESS_FEED_URL=${{ secrets.REACT_APP_WORDPRESS_FEED_URL }}
+          
+          # Google OAuth
+          REACT_APP_GOOGLE_CLIENT_ID=${{ secrets.REACT_APP_GOOGLE_CLIENT_ID }}
+          
+          # Server Configuration
+          NODE_ENV=production
+          PORT=3000
+          HTTPS_PORT=443
+          EOF
+          echo "✅ .env file generated"
+
+      - name: Generate dynamic inventory file
+        run: |
+          mkdir -p deployment/ansible
+          cat > deployment/ansible/inventory-github.yml <<EOF
+          all:
+            hosts:
+              production-server:
+                ansible_host: ${{ secrets.ANSIBLE_HOST }}
+                ansible_user: ${{ secrets.ANSIBLE_USER }}
+                ansible_ssh_private_key_file: /tmp/ansible_key
+                ansible_python_interpreter: /usr/bin/python3
+                ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+                ansible_become: true
+                ansible_become_method: sudo
+                ansible_become_password: ""
+                ansible_become_flags: "-n"
+
+            vars:
+              app_name: school-portal
+              app_version: "${{ steps.version.outputs.version }}"
+              docker_registry: ${{ env.DOCKER_REGISTRY }}
+              production_ip: ${{ secrets.PRODUCTION_IP }}
+              production_domain: ${{ secrets.PRODUCTION_DOMAIN }}
+              use_ip: ${{ secrets.USE_IP }}
+              use_https: ${{ secrets.USE_HTTPS }}
+              letsencrypt_email: ${{ secrets.LETSENCRYPT_EMAIL }}
+              k8s_namespace: ${{ secrets.K8S_NAMESPACE }}
+          EOF
+          echo "✅ Inventory file generated"
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > /tmp/ansible_key
+          chmod 600 /tmp/ansible_key
+          ssh-keyscan -H ${{ secrets.ANSIBLE_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "✅ SSH key configured"
+
+      - name: Install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install ansible
+          ansible --version
+          echo "✅ Ansible installed"
+
+      - name: Deploy with Ansible
+        run: |
+          cd deployment/ansible
+          
+          DEPLOY_TYPE="${{ steps.deploy_type.outputs.type }}"
+          
+          case $DEPLOY_TYPE in
+            "all")
+              echo "🚀 Deploying everything (infrastructure + app + monitoring)..."
+              ansible-playbook -i inventory-github.yml deploy-all.yml
+              ;;
+            "monitoring")
+              echo "📊 Deploying monitoring only..."
+              ansible-playbook -i inventory-github.yml deploy-monitoring.yml
+              ;;
+            "app"|*)
+              echo "📦 Deploying application only..."
+              ansible-playbook -i inventory-github.yml deploy-app.yml
+              ;;
+          esac
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f /tmp/ansible_key
+          echo "✅ Cleanup completed"
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "📦 Version: ${{ steps.version.outputs.version }}"
+          echo "🌐 URL: ${{ secrets.REACT_APP_REDIRECT_URI }}"
+

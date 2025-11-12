@@ -1,0 +1,181 @@
+# ============================================================================
+# School Portal Monitoring & Health Checks
+# ============================================================================
+#
+# This manifest sets up monitoring for the School Portal application:
+#   - ServiceMonitor for Prometheus scraping
+#   - PodMonitor for pod-level metrics
+#   - Alert rules for common issues
+#
+# USAGE:
+#   kubectl apply -f monitoring.yaml
+#
+# ============================================================================
+
+---
+# ConfigMap: Alert Rules for Prometheus
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: school-portal-alerts
+  namespace: default
+data:
+  alerts.yaml: |
+    groups:
+    - name: school-portal
+      interval: 30s
+      rules:
+      # Alert when pods are crashing/restarting
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total{pod=~"school-portal-.*"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod {{ $labels.pod }} is crash looping"
+          description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in the last 15 minutes"
+      
+      # Alert when pods are not ready
+      - alert: PodNotReady
+        expr: kube_pod_status_ready{pod=~"school-portal-.*",condition="false"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.pod }} is not ready"
+          description: "Pod {{ $labels.pod }} has been in not-ready state for 5 minutes"
+      
+      # Alert on high memory usage
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes{pod=~"school-portal-.*"} / container_spec_memory_limit_bytes{pod=~"school-portal-.*"} > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage in {{ $labels.pod }}"
+          description: "Pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of memory limit"
+      
+      # Alert on high CPU usage
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{pod=~"school-portal-.*"}[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage in {{ $labels.pod }}"
+          description: "Pod {{ $labels.pod }} CPU usage is above 80%"
+      
+      # Alert when rate limit is being hit frequently
+      - alert: HighRateLimitHits
+        expr: rate(http_requests_total{status="429"}[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate of 429 errors"
+          description: "Rate limiting is being triggered frequently"
+      
+      # Alert when deployment has no available replicas
+      - alert: DeploymentNoReplicas
+        expr: kube_deployment_status_replicas_available{deployment="school-portal"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "School Portal has no available replicas"
+          description: "All pods are down for deployment school-portal"
+
+---
+# ServiceMonitor for Prometheus to scrape metrics
+# NOTE: Requires Prometheus Operator CRDs - commented out for vanilla Prometheus
+# apiVersion: monitoring.coreos.com/v1
+# kind: ServiceMonitor
+# metadata:
+#   name: school-portal-metrics
+#   namespace: default
+#   labels:
+#     app: school-portal
+# spec:
+#   selector:
+#     matchLabels:
+#       app: school-portal
+#   endpoints:
+#   - port: http
+#     path: /metrics
+#     interval: 30s
+#     scrapeTimeout: 10s
+
+---
+# Service for metrics endpoint (if not already created)
+apiVersion: v1
+kind: Service
+metadata:
+  name: school-portal-metrics
+  namespace: default
+  labels:
+    app: school-portal
+spec:
+  selector:
+    app: school-portal
+  ports:
+    - name: metrics
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+  type: ClusterIP
+
+---
+# Horizontal Pod Autoscaler
+# Automatically scales based on CPU/Memory usage
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: school-portal-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: school-portal
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+---
+# PodDisruptionBudget
+# Ensures at least 1 pod is always available during updates
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: school-portal-pdb
+  namespace: default
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: school-portal

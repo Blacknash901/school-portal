@@ -86,19 +86,3 @@ jobs:
           echo "📦 Image: ${{ env.DOCKER_REGISTRY }}:${{ steps.version.outputs.version }}"
           echo "📦 Image: ${{ env.DOCKER_REGISTRY }}:latest"
           echo "🏗️  Architectures: linux/amd64, linux/arm64"
-
-  # Optional: Add deployment job here
-  # deploy:
-  #   name: Deploy to Production
-  #   runs-on: ubuntu-latest
-  #   needs: build
-  #   if: github.ref == 'refs/heads/main'
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Deploy
-  #       run: |
-  #         # Add your deployment commands here
-  #         # e.g., kubectl apply, ansible-playbook, etc.
-  #         echo "Deploying to production..."
