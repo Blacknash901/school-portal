@@ -18,7 +18,7 @@ on:
         type: string
 
   workflow_run:
-    workflows: ["Build and Push Docker Image"] # name of your build workflow
+    workflows: ["Build and Push Docker Image"] # triggers after build completes
     types:
       - completed
 
@@ -83,10 +83,10 @@ jobs:
           EOF
           echo "✅ .env file generated"
 
-      - name: Generate dynamic Ansible inventory
+      - name: Generate local Ansible inventory (for self-hosted runner)
         run: |
           mkdir -p deployment/ansible
-          cat > deployment/ansible/inventory-github.yml <<EOF
+          cat > deployment/ansible/inventory-github.yml <<'EOF'
           all:
             hosts:
               production-server:
@@ -95,7 +95,6 @@ jobs:
                 ansible_become: true
                 ansible_become_method: sudo
                 ansible_become_flags: "-n"
-
             vars:
               app_name: school-portal
               app_version: "${{ steps.version.outputs.version }}"
@@ -107,12 +106,12 @@ jobs:
               use_ip: ${{ secrets.USE_IP }}
               letsencrypt_email: ${{ secrets.LETSENCRYPT_EMAIL }}
           EOF
-          echo "✅ Dynamic inventory generated"
+          echo "✅ Local Ansible inventory created"
 
-      - name: Install Ansible (if not already)
+      - name: Install Ansible if missing
         run: |
           if ! command -v ansible >/dev/null 2>&1; then
-            echo "Installing Ansible..."
+            echo "📦 Installing Ansible..."
             sudo apt-get update -y
             sudo apt-get install -y python3-pip
             pip3 install ansible
@@ -120,22 +119,22 @@ jobs:
           ansible --version
 
       - name: Run Ansible Playbook
+        working-directory: deployment/ansible
         run: |
-          cd deployment/ansible
           DEPLOY_TYPE="${{ steps.deploy_type.outputs.type }}"
 
           case $DEPLOY_TYPE in
             "all")
               echo "🔧 Deploying infrastructure + app + monitoring..."
-              ansible-playbook -i inventory-github.yml deploy-all.yml
+              ansible-playbook -i inventory-github.yml deploy-all.yml -vvv
               ;;
             "monitoring")
               echo "📊 Deploying monitoring..."
-              ansible-playbook -i inventory-github.yml deploy-monitoring.yml
+              ansible-playbook -i inventory-github.yml deploy-monitoring.yml -vvv
               ;;
             "app"|*)
-              echo "📦 Deploying app only..."
-              ansible-playbook -i inventory-github.yml deploy-app.yml
+              echo "📦 Deploying application only..."
+              ansible-playbook -i inventory-github.yml deploy-app.yml -vvv
               ;;
           esac
 
