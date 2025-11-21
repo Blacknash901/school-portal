@@ -51,3 +51,14 @@ MULTI-ARCH-BUILDS.md
 *.swp
 *.swo
 *~
+
+# ============================================
+# Terraform
+# ============================================
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!example.tfvars
+.terraform.lock.hcl
+tfplan
