@@ -106,21 +106,21 @@
 
     - name: Create or update Kubernetes secret
       shell: |
-        /snap/bin//snap/bin/microk8s kubectl create secret generic school-portal-secrets \
+        /snap/bin/microk8s kubectl create secret generic school-portal-secrets \
           --from-env-file={{ app_path }}/.env.k8s \
           --namespace={{ k8s_namespace }} \
-          --dry-run=client -o yaml | /snap/bin//snap/bin/microk8s kubectl apply -f -
+          --dry-run=client -o yaml | /snap/bin/microk8s kubectl apply -f -
       args:
         executable: /bin/bash
       changed_when: true
 
     - name: Create or update SSL certificate ConfigMap
       shell: |
-        /snap/bin//snap/bin/microk8s kubectl create configmap ssl-certs \
+        /snap/bin/microk8s kubectl create configmap ssl-certs \
           --from-file=cert.pem={{ certs_path }}/cert.pem \
           --from-file=key.pem={{ certs_path }}/key.pem \
           --namespace={{ k8s_namespace }} \
-          --dry-run=client -o yaml | m/snap/bin//snap/bin/microk8s kubectl apply -f -
+          --dry-run=client -o yaml | /snap/bin/microk8s kubectl apply -f -
       args:
         executable: /bin/bash
       changed_when: true
