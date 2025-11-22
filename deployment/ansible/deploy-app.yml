@@ -243,23 +243,23 @@
             - host: {{ production_domain }}
               http:
                 paths:
-                - path: /
-                  pathType: Prefix
-                  backend:
-                    service:
-                      name: {{ app_name }}-service
-                      port:
-                        number: {{ https_port }}
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: {{ app_name }}-service
+                        port:
+                          number: {{ https_port }}
             {% else %}
             - http:
                 paths:
-                - path: /
-                  pathType: Prefix
-                  backend:
-                    service:
-                      name: {{ app_name }}-service
-                      port:
-                        number: {{ https_port }}
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: {{ app_name }}-service
+                        port:
+                          number: {{ https_port }}
             {% endif %}
 
     - name: Debug generated Kubernetes manifest
@@ -275,6 +275,26 @@
 
     - name: Apply Kubernetes Deployment, Service, and Ingress
       command: /snap/bin/microk8s kubectl apply -f /tmp/k8s-deployment.yaml
+      register: apply_result
+      ignore_errors: yes
+
+    - name: Get Pod Logs (Debug)
+      shell: |
+        POD_NAME=$(/snap/bin/microk8s kubectl get pods -n {{ k8s_namespace }} -l app={{ app_name }} -o jsonpath="{.items[0].metadata.name}")
+        /snap/bin/microk8s kubectl logs $POD_NAME -n {{ k8s_namespace }} --tail=100
+      register: pod_logs
+      ignore_errors: yes
+      when: apply_result.failed
+
+    - name: Print Pod Logs
+      debug:
+        var: pod_logs.stdout_lines
+      when: apply_result.failed
+
+    - name: Fail if deployment failed
+      fail:
+        msg: "Deployment failed. Check logs above."
+      when: apply_result.failed
 
     # ============================================================
     # Wait for Application Readiness
