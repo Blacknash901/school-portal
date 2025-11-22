@@ -225,7 +225,7 @@
         spec:
           ingressClassName: nginx
           rules:
-          - host: {{ production_domain }}
+          - host: {{ production_domain | default(production_ip) }}
             http:
               paths:
               - path: /
