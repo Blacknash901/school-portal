@@ -153,6 +153,18 @@ jobs:
           ssh-keyscan -H ${{ steps.tf_outputs.outputs.ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
           echo "✅ SSH key configured"
 
+      - name: Check Infrastructure Status
+        id: check_infra
+        run: |
+          echo "🔍 Checking if MicroK8s is installed on ${{ steps.tf_outputs.outputs.ip }}..."
+          if ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@${{ steps.tf_outputs.outputs.ip }} "which microk8s"; then
+            echo "✅ Infrastructure is ready"
+            echo "ready=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Infrastructure missing (MicroK8s not found)"
+            echo "ready=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install Ansible
         run: |
           sudo apt-get update
@@ -166,10 +178,17 @@ jobs:
           cd deployment/ansible
           
           DEPLOY_TYPE="${{ steps.deploy_type.outputs.type }}"
+          INFRA_READY="${{ steps.check_infra.outputs.ready }}"
+          
+          # Smart Deployment Logic
+          if [ "$INFRA_READY" == "false" ]; then
+            echo "⚠️ Infrastructure is missing. Forcing full deployment (Infrastructure + App)."
+            DEPLOY_TYPE="all"
+          fi
           
           case $DEPLOY_TYPE in
             "all")
-              echo "🚀 Deploying everything (infrastructure + app + monitoring)..."
+              echo "🚀 Deploying everything (infrastructure + app)..."
               ansible-playbook -i inventory-github.yml deploy-all.yml
               ;;
             "monitoring")

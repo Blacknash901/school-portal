@@ -36,8 +36,8 @@
 - name: "Step 2/3: Deploy Application"
   import_playbook: deploy-app.yml
 
-- name: "Step 3/3: Deploy Monitoring"
-  import_playbook: deploy-monitoring.yml
+# - name: "Step 3/3: Deploy Monitoring"
+#   import_playbook: deploy-monitoring.yml
 
 # ============================================================================
 # Final Summary
