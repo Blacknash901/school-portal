@@ -237,7 +237,8 @@
         spec:
           ingressClassName: nginx
           rules:
-          {% if use_domain %}
+          # Ingress Rule (Updated Logic)
+          {% if use_domain | bool %}
           - host: {{ production_domain }}
             http:
               paths:
