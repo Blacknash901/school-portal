@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app_name }}
+  namespace: {{ k8s_namespace }}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+    spec:
+      containers:
+        - name: {{ app_name }}
+          image: {{ docker_registry }}:{{ app_version }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+            - containerPort: {{ https_port | int }}
+              name: https
+          envFrom:
+            - secretRef:
+                name: school-portal-secrets
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: HTTPS_PORT
+              value: "{{ https_port }}"
+            - name: CERT_PATH
+              value: "/app/certs/cert.pem"
+            - name: KEY_PATH
+              value: "/app/certs/key.pem"
+          volumeMounts:
+            - name: ssl-certs
+              mountPath: /app/certs
+              readOnly: true
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ https_port | int }}
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ https_port | int }}
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: ssl-certs
+          configMap:
+            name: ssl-certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-service
+  namespace: {{ k8s_namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ app_name }}
+  ports:
+    - name: https
+      protocol: TCP
+      port: {{ https_port | int }}
+      targetPort: {{ https_port | int }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ app_name }}-ingress
+  namespace: {{ k8s_namespace }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+{% if use_domain | bool %}
+    - host: {{ production_domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ app_name }}-service
+                port:
+                  number: {{ https_port | int }}
+{% else %}
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ app_name }}-service
+                port:
+                  number: {{ https_port | int }}
+{% endif %}
