@@ -237,7 +237,8 @@
         spec:
           ingressClassName: nginx
           rules:
-          - host: {{ production_domain | default(production_ip, true) }}
+          {% if use_domain %}
+          - host: {{ production_domain }}
             http:
               paths:
               - path: /
@@ -247,6 +248,17 @@
                     name: {{ app_name }}-service
                     port:
                       number: {{ https_port }}
+          {% else %}
+          - http:
+              paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: {{ app_name }}-service
+                    port:
+                      number: {{ https_port }}
+          {% endif %}
         EOF
       args:
         executable: /bin/bash
