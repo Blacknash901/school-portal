@@ -35,6 +35,18 @@
 
   tasks:
     # ============================================================
+    # Debug Variables
+    # ============================================================
+    - name: Debug deployment variables
+      debug:
+        msg:
+          - "production_domain: '{{ production_domain }}'"
+          - "use_ip: '{{ use_ip }}'"
+          - "use_https: '{{ use_https }}'"
+          - "production_ip: '{{ production_ip }}'"
+          - "use_domain (calculated): '{{ use_domain }}'"
+
+    # ============================================================
     # Prepare Application Directory
     # ============================================================
     - name: Create application directory
@@ -225,7 +237,7 @@
         spec:
           ingressClassName: nginx
           rules:
-          - host: {{ production_domain | default(production_ip) }}
+          - host: {{ production_domain | default(production_ip, true) }}
             http:
               paths:
               - path: /
