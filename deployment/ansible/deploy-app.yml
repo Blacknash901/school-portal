@@ -27,8 +27,8 @@
 
   vars:
     # Logic: Use Domain if (use_ip is false AND domain is set), otherwise use IP
-    use_domain: "{{ not use_ip|bool and production_domain|default('')|length > 0 }}"
-    redirect_uri: "{{ 'https://' + production_domain if use_domain else ('https://' + production_ip + ':30443' if use_https|bool else 'http://' + production_ip + ':3000') }}"
+    use_domain: "{{ not use_ip|bool and (production_domain | default('', true) | length > 0) }}"
+    redirect_uri: "{{ 'https://' + (production_domain | default('', true)) if use_domain else ('https://' + production_ip + ':30443' if use_https|bool else 'http://' + production_ip + ':3000') }}"
     https_port: "{{ 443 if use_domain else (3443 if use_https|bool else 443) }}"
     app_path: "/opt/{{ app_name }}"
     certs_path: "/opt/{{ app_name }}/certs"
