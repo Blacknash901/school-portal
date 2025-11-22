@@ -240,27 +240,38 @@
             rules:
             # Ingress Rule (Updated Logic)
             {% if use_domain | bool %}
-              - host: {{ production_domain }}
-                http:
-                  paths:
-                    - path: /
-                      pathType: Prefix
-                      backend:
-                        service:
-                          name: {{ app_name }}-service
-                          port:
-                            number: {{ https_port }}
+            - host: {{ production_domain }}
+              http:
+                paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: {{ app_name }}-service
+                      port:
+                        number: {{ https_port }}
             {% else %}
-              - http:
-                  paths:
-                    - path: /
-                      pathType: Prefix
-                      backend:
-                        service:
-                          name: {{ app_name }}-service
-                          port:
-                            number: {{ https_port }}
+            - http:
+                paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: {{ app_name }}-service
+                      port:
+                        number: {{ https_port }}
             {% endif %}
+
+    - name: Debug generated Kubernetes manifest
+      command: cat /tmp/k8s-deployment.yaml
+      register: k8s_manifest_debug
+
+    - name: Print generated Kubernetes manifest
+      debug:
+        var: k8s_manifest_debug.stdout_lines
+
+    - name: Delete existing Ingress to avoid patch issues
+      command: /snap/bin/microk8s kubectl delete ingress {{ app_name }}-ingress -n {{ k8s_namespace }} --ignore-not-found=true
 
     - name: Apply Kubernetes Deployment, Service, and Ingress
       command: /snap/bin/microk8s kubectl apply -f /tmp/k8s-deployment.yaml
