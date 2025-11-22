@@ -96,6 +96,25 @@ jobs:
           EOF
           echo "✅ .env file generated"
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.9.0
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Fetch Terraform Outputs
+        id: tf_outputs
+        run: |
+          cd infrastructure/terraform
+          terraform init
+          
+          IP=$(terraform output -raw ec2_instance_1_public_ip)
+          terraform output -raw private_key_pem > ../../private_key.pem
+          chmod 600 ../../private_key.pem
+          
+          echo "ip=$IP" >> $GITHUB_OUTPUT
+          echo "✅ Fetched IP: $IP"
+
       - name: Generate dynamic inventory file
         run: |
           mkdir -p deployment/ansible
@@ -103,9 +122,9 @@ jobs:
           all:
             hosts:
               production-server:
-                ansible_host: ${{ secrets.ANSIBLE_HOST }}
-                ansible_user: ${{ secrets.ANSIBLE_USER }}
-                ansible_ssh_private_key_file: /tmp/ansible_key
+                ansible_host: ${{ steps.tf_outputs.outputs.ip }}
+                ansible_user: ubuntu
+                ansible_ssh_private_key_file: private_key.pem
                 ansible_python_interpreter: /usr/bin/python3
                 ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
                 ansible_become: true
@@ -117,7 +136,7 @@ jobs:
               app_name: school-portal
               app_version: "${{ steps.version.outputs.version }}"
               docker_registry: ${{ env.DOCKER_REGISTRY }}
-              production_ip: ${{ secrets.PRODUCTION_IP }}
+              production_ip: ${{ steps.tf_outputs.outputs.ip }}
               production_domain: ${{ secrets.PRODUCTION_DOMAIN }}
               use_ip: ${{ secrets.USE_IP }}
               use_https: ${{ secrets.USE_HTTPS }}
@@ -129,9 +148,8 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > /tmp/ansible_key
-          chmod 600 /tmp/ansible_key
-          ssh-keyscan -H ${{ secrets.ANSIBLE_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Key is already saved to private_key.pem in workspace root
+          ssh-keyscan -H ${{ steps.tf_outputs.outputs.ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
           echo "✅ SSH key configured"
 
       - name: Install Ansible
@@ -166,7 +184,7 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          rm -f /tmp/ansible_key
+          rm -f private_key.pem
           echo "✅ Cleanup completed"
 
       - name: Deployment summary
