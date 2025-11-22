@@ -116,6 +116,18 @@ jobs:
           echo "ip=$IP" >> $GITHUB_OUTPUT
           echo "✅ Fetched IP: $IP"
 
+      - name: Determine production domain
+        id: production_domain
+        env:
+          PRODUCTION_DOMAIN_SECRET: ${{ secrets.PRODUCTION_DOMAIN }}
+        run: |
+          DOMAIN="$PRODUCTION_DOMAIN_SECRET"
+          if [ -z "$DOMAIN" ]; then
+            DOMAIN="portal.cecre.net"
+          fi
+          echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
+          echo "✅ Using production domain: $DOMAIN"
+
       - name: Generate dynamic inventory file
         run: |
           mkdir -p deployment/ansible
@@ -138,7 +150,7 @@ jobs:
               app_version: "${{ steps.version.outputs.version }}"
               docker_registry: ${{ env.DOCKER_REGISTRY }}
               production_ip: ${{ steps.tf_outputs.outputs.ip }}
-              production_domain: "${{ secrets.PRODUCTION_DOMAIN || '' }}"
+              production_domain: "${{ steps.production_domain.outputs.domain }}"
               use_ip: "${{ secrets.USE_IP || 'false' }}"
               use_https: "${{ secrets.USE_HTTPS || 'true' }}"
               letsencrypt_email: ${{ secrets.LETSENCRYPT_EMAIL }}

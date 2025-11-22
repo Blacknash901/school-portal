@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       app_version:
-        description: 'App version to deploy'
+        description: "App version to deploy"
         required: false
-        default: 'latest'
+        default: "latest"
         type: string
 
 env:
@@ -56,7 +56,7 @@ jobs:
           IP1=$(terraform output -raw ec2_instance_1_public_ip)
 
           echo "server1 ansible_host=$IP1 ansible_user=ubuntu ansible_ssh_private_key_file=key.pem" >> ../../deployment/ansible/inventory.ini
-          
+
           echo "" >> ../../deployment/ansible/inventory.ini
           echo "[all:vars]" >> ../../deployment/ansible/inventory.ini
           echo "production_ip=$IP1" >> ../../deployment/ansible/inventory.ini
