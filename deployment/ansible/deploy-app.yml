@@ -143,7 +143,7 @@
     # ============================================================
     - name: Apply Kubernetes Deployment, Service, and Ingress
       shell: |
-        cat <<EOF | /snap/bin/microk8s kubectl apply -f -
+        cat <<END_OF_YAML | /snap/bin/microk8s kubectl apply -f -
         apiVersion: apps/v1
         kind: Deployment
         metadata:
@@ -260,7 +260,7 @@
                     port:
                       number: {{ https_port }}
           {% endif %}
-        EOF
+        END_OF_YAML
       args:
         executable: /bin/bash
       changed_when: true
