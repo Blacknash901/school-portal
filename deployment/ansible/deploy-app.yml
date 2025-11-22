@@ -240,26 +240,26 @@
             rules:
             # Ingress Rule (Updated Logic)
             {% if use_domain | bool %}
-            - host: {{ production_domain }}
-              http:
-                paths:
-                  - path: /
-                    pathType: Prefix
-                    backend:
-                      service:
-                        name: {{ app_name }}-service
-                        port:
-                          number: {{ https_port }}
+              - host: {{ production_domain }}
+                http:
+                  paths:
+                    - path: /
+                      pathType: Prefix
+                      backend:
+                        service:
+                          name: {{ app_name }}-service
+                          port:
+                            number: {{ https_port }}
             {% else %}
-            - http:
-                paths:
-                  - path: /
-                    pathType: Prefix
-                    backend:
-                      service:
-                        name: {{ app_name }}-service
-                        port:
-                          number: {{ https_port }}
+              - http:
+                  paths:
+                    - path: /
+                      pathType: Prefix
+                      backend:
+                        service:
+                          name: {{ app_name }}-service
+                          port:
+                            number: {{ https_port }}
             {% endif %}
 
     - name: Debug generated Kubernetes manifest
@@ -278,17 +278,16 @@
       register: apply_result
       ignore_errors: yes
 
-    - name: Get Pod Logs (Debug)
+    - name: Describe Pods (Debug)
       shell: |
-        POD_NAME=$(/snap/bin/microk8s kubectl get pods -n {{ k8s_namespace }} -l app={{ app_name }} -o jsonpath="{.items[0].metadata.name}")
-        /snap/bin/microk8s kubectl logs $POD_NAME -n {{ k8s_namespace }} --tail=100
-      register: pod_logs
+        /snap/bin/microk8s kubectl describe pods -n {{ k8s_namespace }} -l app={{ app_name }}
+      register: pod_description
       ignore_errors: yes
       when: apply_result.failed
 
-    - name: Print Pod Logs
+    - name: Print Pod Description
       debug:
-        var: pod_logs.stdout_lines
+        var: pod_description.stdout_lines
       when: apply_result.failed
 
     - name: Fail if deployment failed
