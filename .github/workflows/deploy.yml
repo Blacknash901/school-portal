@@ -4,24 +4,24 @@ on:
   workflow_dispatch:
     inputs:
       deploy_type:
-        description: 'Deployment type'
+        description: "Deployment type"
         required: true
-        default: 'app'
+        default: "app"
         type: choice
         options:
           - app
           - all
           - monitoring
       app_version:
-        description: 'App version (leave empty to use package.json version)'
+        description: "App version (leave empty to use package.json version)"
         required: false
         type: string
   push:
     branches: [main, master]
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/workflows/docker-build.yml'
+      - "**.md"
+      - "docs/**"
+      - ".github/workflows/docker-build.yml"
 
 env:
   DOCKER_REGISTRY: blacknash/cecre
@@ -31,7 +31,7 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -66,7 +66,7 @@ jobs:
           REACT_APP_AZURE_CLIENT_ID=${{ secrets.REACT_APP_AZURE_CLIENT_ID }}
           REACT_APP_AZURE_TENANT_ID=${{ secrets.REACT_APP_AZURE_TENANT_ID }}
           REACT_APP_REDIRECT_URI=${{ secrets.REACT_APP_REDIRECT_URI }}
-          
+
           # AWS S3 Logging
           REACT_APP_S3_BUCKET_NAME=${{ secrets.REACT_APP_S3_BUCKET_NAME }}
           REACT_APP_S3_REGION=${{ secrets.REACT_APP_S3_REGION }}
@@ -76,19 +76,19 @@ jobs:
           AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION=${{ secrets.AWS_REGION }}
           S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-          
+
           # Sentry Error Tracking
           REACT_APP_SENTRY_DSN=${{ secrets.REACT_APP_SENTRY_DSN }}
           REACT_APP_SENTRY_ENVIRONMENT=${{ secrets.REACT_APP_SENTRY_ENVIRONMENT }}
           REACT_APP_ENABLE_SENTRY=${{ secrets.REACT_APP_ENABLE_SENTRY }}
           SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-          
+
           # WordPress RSS Feed
           REACT_APP_WORDPRESS_FEED_URL=${{ secrets.REACT_APP_WORDPRESS_FEED_URL }}
-          
+
           # Google OAuth
           REACT_APP_GOOGLE_CLIENT_ID=${{ secrets.REACT_APP_GOOGLE_CLIENT_ID }}
-          
+
           # Server Configuration
           NODE_ENV=production
           PORT=3000
@@ -108,11 +108,11 @@ jobs:
         run: |
           cd infrastructure/terraform
           terraform init
-          
+
           IP=$(terraform output -raw ec2_instance_1_public_ip)
           terraform output -raw private_key_pem > ../../private_key.pem
           chmod 600 ../../private_key.pem
-          
+
           echo "ip=$IP" >> $GITHUB_OUTPUT
           echo "✅ Fetched IP: $IP"
 
@@ -142,7 +142,7 @@ jobs:
               use_ip: ${{ secrets.USE_IP }}
               use_https: ${{ secrets.USE_HTTPS }}
               letsencrypt_email: ${{ secrets.LETSENCRYPT_EMAIL }}
-              k8s_namespace: ${{ secrets.K8S_NAMESPACE }}
+              k8s_namespace: ${{ secrets.K8S_NAMESPACE || 'default' }}
           EOF
           echo "✅ Inventory file generated"
 
@@ -176,16 +176,16 @@ jobs:
       - name: Deploy with Ansible
         run: |
           cd deployment/ansible
-          
+
           DEPLOY_TYPE="${{ steps.deploy_type.outputs.type }}"
           INFRA_READY="${{ steps.check_infra.outputs.ready }}"
-          
+
           # Smart Deployment Logic
           if [ "$INFRA_READY" == "false" ]; then
             echo "⚠️ Infrastructure is missing. Forcing full deployment (Infrastructure + App)."
             DEPLOY_TYPE="all"
           fi
-          
+
           case $DEPLOY_TYPE in
             "all")
               echo "🚀 Deploying everything (infrastructure + app)..."
@@ -213,4 +213,3 @@ jobs:
           echo "✅ Deployment completed successfully!"
           echo "📦 Version: ${{ steps.version.outputs.version }}"
           echo "🌐 URL: ${{ secrets.REACT_APP_REDIRECT_URI }}"
-
