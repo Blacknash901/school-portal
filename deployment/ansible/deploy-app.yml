@@ -240,26 +240,26 @@
             rules:
             # Ingress Rule (Updated Logic)
             {% if use_domain | bool %}
-            - host: {{ production_domain }}
-              http:
-                paths:
-                - path: /
-                  pathType: Prefix
-                  backend:
-                    service:
-                      name: {{ app_name }}-service
-                      port:
-                        number: {{ https_port }}
+              - host: {{ production_domain }}
+                http:
+                  paths:
+                    - path: /
+                      pathType: Prefix
+                      backend:
+                        service:
+                          name: {{ app_name }}-service
+                          port:
+                            number: {{ https_port }}
             {% else %}
-            - http:
-                paths:
-                - path: /
-                  pathType: Prefix
-                  backend:
-                    service:
-                      name: {{ app_name }}-service
-                      port:
-                        number: {{ https_port }}
+              - http:
+                  paths:
+                    - path: /
+                      pathType: Prefix
+                      backend:
+                        service:
+                          name: {{ app_name }}-service
+                          port:
+                            number: {{ https_port }}
             {% endif %}
 
     - name: Apply Kubernetes Deployment, Service, and Ingress
