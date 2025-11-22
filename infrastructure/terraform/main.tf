@@ -48,6 +48,7 @@ module "ec2_instance_1" {
   subnet_id     = module.vpc.public_subnets[0]
   vpc_id        = module.vpc.vpc_id
   key_name      = aws_key_pair.deployer.key_name
+  volume_size   = 64
 }
 
 # ----------------------------------

@@ -32,3 +32,9 @@ variable "key_name" {
   description = "Name of the SSH key pair"
   type        = string
 }
+
+variable "volume_size" {
+  description = "Size of the root volume in GB"
+  type        = number
+  default     = 20
+}

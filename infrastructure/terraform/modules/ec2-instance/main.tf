@@ -50,6 +50,11 @@ resource "aws_instance" "ec2" {
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   key_name               = var.key_name
 
+  root_block_device {
+    volume_size = var.volume_size
+    volume_type = "gp3"
+  }
+
   tags = merge(
     var.tags,
     {
