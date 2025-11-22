@@ -51,16 +51,11 @@ module "ec2_instance_1" {
 }
 
 # ----------------------------------
-# Load Balancer
+# Elastic IP
 # ----------------------------------
 
-module "load_balancer" {
-  source              = "./modules/load-balancer"
-  project             = var.project
-  environment         = var.environment
-  vpc_id              = module.vpc.vpc_id
-  subnets             = module.vpc.public_subnets
-  security_groups     = [module.ec2_instance_1.security_group_id]
-  target_instance_ids = [module.ec2_instance_1.instance_id]
-  tags                = local.common_tags
+resource "aws_eip" "lb" {
+  instance = module.ec2_instance_1.instance_id
+  domain   = "vpc"
+  tags     = local.common_tags
 }

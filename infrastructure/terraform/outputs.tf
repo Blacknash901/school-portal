@@ -13,14 +13,9 @@ output "ec2_instance_1_id" {
   value       = module.ec2_instance_1.instance_id
 }
 
-output "load_balancer_dns" {
-  description = "DNS name of the load balancer"
-  value       = module.load_balancer.dns_name
-}
-
 output "ec2_instance_1_public_ip" {
-  description = "Public IP of the first EC2 instance"
-  value       = module.ec2_instance_1.public_ip
+  description = "Public Elastic IP of the EC2 instance"
+  value       = aws_eip.lb.public_ip
 }
 
 output "private_key_pem" {
