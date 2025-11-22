@@ -36,6 +36,7 @@
           - gnupg
           - lsb-release
           - python3-pip
+          - python3-docker
           - rsync
         state: present
 
