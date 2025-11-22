@@ -26,8 +26,8 @@
   gather_facts: yes
 
   vars:
-    redirect_uri: "{{ 'https://' + production_ip + ':30443' if (use_ip and use_https) else ('http://' + production_ip + ':3000' if use_ip else 'https://' + production_domain) }}"
-    https_port: "{{ 3443 if (use_ip and use_https) else 443 }}"
+    redirect_uri: "{{ 'https://' + production_ip + ':30443' if (use_ip|bool and use_https|bool) else ('http://' + production_ip + ':3000' if use_ip|bool else 'https://' + (production_domain|default(''))) }}"
+    https_port: "{{ 3443 if (use_ip|bool and use_https|bool) else 443 }}"
     app_path: "/opt/{{ app_name }}"
     certs_path: "/opt/{{ app_name }}/certs"
 

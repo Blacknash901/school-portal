@@ -138,9 +138,9 @@ jobs:
               app_version: "${{ steps.version.outputs.version }}"
               docker_registry: ${{ env.DOCKER_REGISTRY }}
               production_ip: ${{ steps.tf_outputs.outputs.ip }}
-              production_domain: ${{ secrets.PRODUCTION_DOMAIN }}
-              use_ip: ${{ secrets.USE_IP }}
-              use_https: ${{ secrets.USE_HTTPS }}
+              production_domain: ${{ secrets.PRODUCTION_DOMAIN || '' }}
+              use_ip: ${{ secrets.USE_IP || 'true' }}
+              use_https: ${{ secrets.USE_HTTPS || 'true' }}
               letsencrypt_email: ${{ secrets.LETSENCRYPT_EMAIL }}
               k8s_namespace: ${{ secrets.K8S_NAMESPACE || 'default' }}
           EOF
