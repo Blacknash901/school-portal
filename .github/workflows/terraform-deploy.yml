@@ -47,10 +47,8 @@ jobs:
           # We need to get the public IPs from the outputs. 
           # Note: We need to ensure outputs are defined in root outputs.tf
           IP1=$(terraform output -raw ec2_instance_1_public_ip)
-          IP2=$(terraform output -raw ec2_instance_2_public_ip)
 
           echo "server1 ansible_host=$IP1 ansible_user=ubuntu ansible_ssh_private_key_file=key.pem" >> ../../deployment/ansible/inventory.ini
-          echo "server2 ansible_host=$IP2 ansible_user=ubuntu ansible_ssh_private_key_file=key.pem" >> ../../deployment/ansible/inventory.ini
 
           cat ../../deployment/ansible/inventory.ini
 

@@ -50,17 +50,6 @@ module "ec2_instance_1" {
   key_name      = aws_key_pair.deployer.key_name
 }
 
-module "ec2_instance_2" {
-  source        = "./modules/ec2-instance"
-  ami           = var.ec2_ami
-  instance_type = var.ec2_type
-  environment   = "${var.environment}-2"
-  tags          = local.common_tags
-  subnet_id     = module.vpc.public_subnets[1]
-  vpc_id        = module.vpc.vpc_id
-  key_name      = aws_key_pair.deployer.key_name
-}
-
 # ----------------------------------
 # Load Balancer
 # ----------------------------------
@@ -71,7 +60,7 @@ module "load_balancer" {
   environment         = var.environment
   vpc_id              = module.vpc.vpc_id
   subnets             = module.vpc.public_subnets
-  security_groups     = [module.ec2_instance_1.security_group_id, module.ec2_instance_2.security_group_id]
-  target_instance_ids = [module.ec2_instance_1.instance_id, module.ec2_instance_2.instance_id]
+  security_groups     = [module.ec2_instance_1.security_group_id]
+  target_instance_ids = [module.ec2_instance_1.instance_id]
   tags                = local.common_tags
 }
