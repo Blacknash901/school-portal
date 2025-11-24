@@ -78,6 +78,103 @@
         append: yes
 
     # ============================================================
+    # Persistent Storage Setup (EBS)
+    # ============================================================
+    - name: Detect EBS volume (NVMe or standard)
+      shell: |
+        # Check for the specific device name first
+        if [ -b /dev/sdf ]; then
+          echo "/dev/sdf"
+        # Check for NVMe device (usually nvme1n1 if root is nvme0n1)
+        elif [ -b /dev/nvme1n1 ]; then
+          echo "/dev/nvme1n1"
+        else
+          # Find by size (64G)
+          lsblk -dn -o NAME,SIZE | grep '64G' | awk '{print "/dev/"$1}' | head -n1
+        fi
+      register: ebs_device_output
+      changed_when: false
+
+    - name: Set EBS device path
+      set_fact:
+        ebs_device: "{{ ebs_device_output.stdout | trim }}"
+
+    - name: Fail if EBS device not found
+      fail:
+        msg: "Could not detect 64GB EBS volume. Please check attachment."
+      when: ebs_device == ""
+
+    - name: Display detected EBS device
+      debug:
+        msg: "Detected EBS device: {{ ebs_device }}"
+
+    - name: Check if MicroK8s is installed
+      command: snap list microk8s
+      register: microk8s_installed
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Stop MicroK8s if installed (to release file handles)
+      command: microk8s stop
+      when:
+        - microk8s_installed.rc is defined
+        - microk8s_installed.rc == 0
+      ignore_errors: yes
+
+    - name: Create ext4 filesystem on EBS volume
+      filesystem:
+        fstype: ext4
+        dev: "{{ ebs_device }}"
+
+    - name: Create mount point for MicroK8s data
+      file:
+        path: /var/snap/microk8s/common
+        state: directory
+        mode: "0755"
+        recurse: yes
+
+    - name: Mount EBS volume
+      mount:
+        path: /var/snap/microk8s/common
+        src: "{{ ebs_device }}"
+        fstype: ext4
+        opts: defaults,nofail
+        state: mounted
+
+    # ============================================================
+    # Backup Tools
+    # ============================================================
+    - name: Install AWS CLI
+      apt:
+        name: awscli
+        state: present
+
+    - name: Create backup script
+      copy:
+        dest: /usr/local/bin/backup-k8s-to-s3.sh
+        mode: "0755"
+        content: |
+          #!/bin/bash
+          BACKUP_DATE=$(date +%Y-%m-%d_%H-%M-%S)
+          BACKUP_FILE="/tmp/k8s-backup-$BACKUP_DATE.tar.gz"
+
+          # Backup MicroK8s data
+          tar -czf $BACKUP_FILE /var/snap/microk8s/common
+
+          # Upload to S3
+          aws s3 cp $BACKUP_FILE s3://cecre-k8/backups/
+
+          # Cleanup local backup
+          rm $BACKUP_FILE
+
+    - name: Setup daily backup cron job
+      cron:
+        name: "Backup MicroK8s to S3"
+        minute: "0"
+        hour: "2"
+        job: "/usr/local/bin/backup-k8s-to-s3.sh >> /var/log/k8s-backup.log 2>&1"
+
+    # ============================================================
     # MicroK8s
     # ============================================================
     - name: Install snapd
