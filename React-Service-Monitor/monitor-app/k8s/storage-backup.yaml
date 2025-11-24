@@ -1,0 +1,100 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-sc
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  encrypted: "true"
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: s3-backup-storage
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc # For S3-backed storage via EFS
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-to-s3
+  namespace: monitoring
+spec:
+  schedule: "0 2 * * *" # Daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: backup-sa
+          containers:
+            - name: backup
+              image: amazon/aws-cli:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  # Backup Prometheus data
+                  tar czf /tmp/prometheus-backup-$(date +%Y%m%d).tar.gz -C /prometheus .
+                  aws s3 cp /tmp/prometheus-backup-$(date +%Y%m%d).tar.gz s3://${S3_BUCKET}/prometheus/
+
+                  # Backup Grafana data
+                  tar czf /tmp/grafana-backup-$(date +%Y%m%d).tar.gz -C /grafana .
+                  aws s3 cp /tmp/grafana-backup-$(date +%Y%m%d).tar.gz s3://${S3_BUCKET}/grafana/
+
+                  # Cleanup old backups (keep last 30 days)
+                  aws s3 ls s3://${S3_BUCKET}/prometheus/ | while read -r line; do
+                    createDate=$(echo $line | awk '{print $1" "$2}')
+                    createDate=$(date -d "$createDate" +%s)
+                    olderThan=$(date -d "30 days ago" +%s)
+                    if [[ $createDate -lt $olderThan ]]; then
+                      fileName=$(echo $line | awk '{print $4}')
+                      aws s3 rm s3://${S3_BUCKET}/prometheus/$fileName
+                    fi
+                  done
+              env:
+                - name: S3_BUCKET
+                  valueFrom:
+                    configMapKeyRef:
+                      name: backup-config
+                      key: s3_bucket
+                - name: AWS_REGION
+                  value: "us-east-1" # Change to your region
+              volumeMounts:
+                - name: prometheus-data
+                  mountPath: /prometheus
+                  readOnly: true
+                - name: grafana-data
+                  mountPath: /grafana
+                  readOnly: true
+          volumes:
+            - name: prometheus-data
+              persistentVolumeClaim:
+                claimName: prometheus-storage
+            - name: grafana-data
+              persistentVolumeClaim:
+                claimName: grafana-storage
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-config
+  namespace: monitoring
+data:
+  s3_bucket: "cecre-monitoring-backup" # Change to your S3 bucket name
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-sa
+  namespace: monitoring
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/monitoring-backup-role # Replace with your IAM role ARN

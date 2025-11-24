@@ -1,0 +1,27 @@
+{
+  "files": {
+    "main.css": "/static/css/main.a3d6f64e.css",
+    "main.js": "/static/js/main.9daa27af.js",
+    "static/js/453.b83b8a76.chunk.js": "/static/js/453.b83b8a76.chunk.js",
+    "static/media/wootit-logo.PNG": "/static/media/wootit-logo.295dce84e1314b71397e.PNG",
+    "static/media/Outlook_512.png": "/static/media/Outlook_512.4bd1a134941c390fe6ad.png",
+    "static/media/PowerPoint_512.png": "/static/media/PowerPoint_512.d06eb668e8fe1020f06b.png",
+    "static/media/Excel_512.png": "/static/media/Excel_512.2b4db4d7ef45b3f9f71e.png",
+    "static/media/Teams_512.png": "/static/media/Teams_512.869ae6f39d642d290e9e.png",
+    "static/media/Word_512.png": "/static/media/Word_512.7aa0e5fb130768c085b2.png",
+    "static/media/cecre_logo_test.jpeg": "/static/media/cecre_logo_test.af87e06b54a3b6a2fe7d.jpeg",
+    "static/media/AWS-Cloud-logo_32.svg": "/static/media/AWS-Cloud-logo_32.3f895596f846fea018216e3803ae40fd.svg",
+    "static/media/10018-icon-service-Azure-A.svg": "/static/media/10018-icon-service-Azure-A.45b7f956c24cd99812e349f28b8968f9.svg",
+    "static/media/Microsoft Entra ID BW icon.svg": "/static/media/Microsoft Entra ID BW icon.6fdb056c2faadbdadc12e5b8a7f29c9a.svg",
+    "static/media/moodle-svgrepo-com.svg": "/static/media/moodle-svgrepo-com.d8aedbefb73b736a9b3a64ba72e1e8f5.svg",
+    "index.html": "/index.html",
+    "static/media/shopping-cart.svg": "/static/media/shopping-cart.ecb019fe8f1ba04e82422c837a987a87.svg",
+    "main.a3d6f64e.css.map": "/static/css/main.a3d6f64e.css.map",
+    "main.9daa27af.js.map": "/static/js/main.9daa27af.js.map",
+    "453.b83b8a76.chunk.js.map": "/static/js/453.b83b8a76.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.a3d6f64e.css",
+    "static/js/main.9daa27af.js"
+  ]
+}

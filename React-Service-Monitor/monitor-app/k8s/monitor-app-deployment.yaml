@@ -1,0 +1,153 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitor-app-config
+  namespace: monitoring
+data:
+  PROMETHEUS_URL: "http://prometheus:9090"
+  GRAFANA_URL: "http://grafana:3000"
+  NODE_ENV: "production"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monitor-app
+  namespace: monitoring
+  labels:
+    app: monitor-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: monitor-app
+  template:
+    metadata:
+      labels:
+        app: monitor-app
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3001"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: monitor-app
+      containers:
+        - name: monitor-app
+          image: cecre/monitor-app:latest # Replace with your image
+          ports:
+            - containerPort: 3001
+              name: api
+            - containerPort: 80
+              name: http
+          env:
+            - name: PORT
+              value: "3001"
+            - name: PROMETHEUS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: monitor-app-config
+                  key: PROMETHEUS_URL
+            - name: GRAFANA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: monitor-app-config
+                  key: GRAFANA_URL
+            - name: GRAFANA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-api-key
+                  key: api-key
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitor-app
+  namespace: monitoring
+  labels:
+    app: monitor-app
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+    - port: 3001
+      targetPort: 3001
+      protocol: TCP
+      name: api
+  selector:
+    app: monitor-app
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: monitor-app
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitor-app
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - services
+      - endpoints
+      - pods
+      - events
+      - namespaces
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - daemonsets
+      - replicasets
+      - statefulsets
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: monitor-app
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: monitor-app
+subjects:
+  - kind: ServiceAccount
+    name: monitor-app
+    namespace: monitoring
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-api-key
+  namespace: monitoring
+type: Opaque
+stringData:
+  api-key: "" # Generate this from Grafana UI and update

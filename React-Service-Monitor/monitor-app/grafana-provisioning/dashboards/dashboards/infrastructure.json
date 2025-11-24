@@ -1,0 +1,105 @@
+{
+  "dashboard": {
+    "title": "Infrastructure Overview",
+    "uid": "infrastructure-overview",
+    "tags": ["aws", "infrastructure", "cloudwatch"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "EC2 CPU Utilization",
+        "type": "graph",
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "aws_ec2_cpuutilization_average",
+            "legendFormat": "{{dimension_InstanceId}}"
+          }
+        ],
+        "yaxes": [
+          { "format": "percent", "min": 0, "max": 100 },
+          { "format": "short" }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Network Traffic",
+        "type": "graph",
+        "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rate(aws_ec2_networkin_sum[5m])",
+            "legendFormat": "In - {{dimension_InstanceId}}"
+          },
+          {
+            "expr": "rate(aws_ec2_networkout_sum[5m])",
+            "legendFormat": "Out - {{dimension_InstanceId}}"
+          }
+        ],
+        "yaxes": [{ "format": "Bps" }, { "format": "short" }]
+      },
+      {
+        "id": 3,
+        "title": "EBS Volume IOPS",
+        "type": "graph",
+        "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rate(aws_ebs_volumeread_ops_sum[5m])",
+            "legendFormat": "Read - {{dimension_VolumeId}}"
+          },
+          {
+            "expr": "rate(aws_ebs_volumewrite_ops_sum[5m])",
+            "legendFormat": "Write - {{dimension_VolumeId}}"
+          }
+        ],
+        "yaxes": [{ "format": "iops" }, { "format": "short" }]
+      },
+      {
+        "id": 4,
+        "title": "EBS Volume Throughput",
+        "type": "graph",
+        "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rate(aws_ebs_volumeread_bytes_sum[5m])",
+            "legendFormat": "Read - {{dimension_VolumeId}}"
+          },
+          {
+            "expr": "rate(aws_ebs_volumewrite_bytes_sum[5m])",
+            "legendFormat": "Write - {{dimension_VolumeId}}"
+          }
+        ],
+        "yaxes": [{ "format": "Bps" }, { "format": "short" }]
+      },
+      {
+        "id": 5,
+        "title": "S3 Bucket Size",
+        "type": "graph",
+        "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "aws_s3_bucketsizebytes_average",
+            "legendFormat": "{{dimension_BucketName}}"
+          }
+        ],
+        "yaxes": [{ "format": "bytes" }, { "format": "short" }]
+      },
+      {
+        "id": 6,
+        "title": "S3 Object Count",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "aws_s3_numberofobjects_average",
+            "legendFormat": "{{dimension_BucketName}}"
+          }
+        ]
+      }
+    ]
+  }
+}

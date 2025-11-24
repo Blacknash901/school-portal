@@ -1,0 +1,273 @@
+---
+region: us-east-1
+period_seconds: 60
+range_seconds: 300
+delay_seconds: 300
+
+metrics:
+  # ========================================
+  # EC2 Instance Metrics
+  # ========================================
+  - aws_namespace: AWS/EC2
+    aws_metric_name: CPUUtilization
+    aws_dimensions:
+      - InstanceId
+    aws_statistics:
+      - Average
+      - Maximum
+    aws_dimensions_select:
+      InstanceId:
+        - "*" # All instances
+
+  - aws_namespace: AWS/EC2
+    aws_metric_name: NetworkIn
+    aws_dimensions:
+      - InstanceId
+    aws_statistics:
+      - Sum
+    aws_dimensions_select:
+      InstanceId:
+        - "*"
+
+  - aws_namespace: AWS/EC2
+    aws_metric_name: NetworkOut
+    aws_dimensions:
+      - InstanceId
+    aws_statistics:
+      - Sum
+    aws_dimensions_select:
+      InstanceId:
+        - "*"
+
+  - aws_namespace: AWS/EC2
+    aws_metric_name: DiskReadBytes
+    aws_dimensions:
+      - InstanceId
+    aws_statistics:
+      - Sum
+    aws_dimensions_select:
+      InstanceId:
+        - "*"
+
+  - aws_namespace: AWS/EC2
+    aws_metric_name: DiskWriteBytes
+    aws_dimensions:
+      - InstanceId
+    aws_statistics:
+      - Sum
+    aws_dimensions_select:
+      InstanceId:
+        - "*"
+
+  - aws_namespace: AWS/EC2
+    aws_metric_name: StatusCheckFailed
+    aws_dimensions:
+      - InstanceId
+    aws_statistics:
+      - Maximum
+    aws_dimensions_select:
+      InstanceId:
+        - "*"
+
+  # ========================================
+  # EBS Volume Metrics
+  # ========================================
+  - aws_namespace: AWS/EBS
+    aws_metric_name: VolumeReadBytes
+    aws_dimensions:
+      - VolumeId
+    aws_statistics:
+      - Sum
+      - Average
+    aws_dimensions_select:
+      VolumeId:
+        - "*"
+
+  - aws_namespace: AWS/EBS
+    aws_metric_name: VolumeWriteBytes
+    aws_dimensions:
+      - VolumeId
+    aws_statistics:
+      - Sum
+      - Average
+    aws_dimensions_select:
+      VolumeId:
+        - "*"
+
+  - aws_namespace: AWS/EBS
+    aws_metric_name: VolumeReadOps
+    aws_dimensions:
+      - VolumeId
+    aws_statistics:
+      - Sum
+    aws_dimensions_select:
+      VolumeId:
+        - "*"
+
+  - aws_namespace: AWS/EBS
+    aws_metric_name: VolumeWriteOps
+    aws_dimensions:
+      - VolumeId
+    aws_statistics:
+      - Sum
+    aws_dimensions_select:
+      VolumeId:
+        - "*"
+
+  - aws_namespace: AWS/EBS
+    aws_metric_name: VolumeThroughputPercentage
+    aws_dimensions:
+      - VolumeId
+    aws_statistics:
+      - Average
+    aws_dimensions_select:
+      VolumeId:
+        - "*"
+
+  - aws_namespace: AWS/EBS
+    aws_metric_name: VolumeConsumedReadWriteOps
+    aws_dimensions:
+      - VolumeId
+    aws_statistics:
+      - Sum
+    aws_dimensions_select:
+      VolumeId:
+        - "*"
+
+  # ========================================
+  # S3 Bucket Metrics
+  # ========================================
+  - aws_namespace: AWS/S3
+    aws_metric_name: BucketSizeBytes
+    aws_dimensions:
+      - BucketName
+      - StorageType
+    aws_statistics:
+      - Average
+    aws_dimensions_select:
+      StorageType:
+        - StandardStorage
+
+  - aws_namespace: AWS/S3
+    aws_metric_name: NumberOfObjects
+    aws_dimensions:
+      - BucketName
+      - StorageType
+    aws_statistics:
+      - Average
+    aws_dimensions_select:
+      StorageType:
+        - AllStorageTypes
+
+  # ========================================
+  # CloudWatch Logs (if used)
+  # ========================================
+  - aws_namespace: AWS/Logs
+    aws_metric_name: IncomingBytes
+    aws_dimensions:
+      - LogGroupName
+    aws_statistics:
+      - Sum
+
+  - aws_namespace: AWS/Logs
+    aws_metric_name: IncomingLogEvents
+    aws_dimensions:
+      - LogGroupName
+    aws_statistics:
+      - Sum
+
+  # ========================================
+  # Application Load Balancer (if used)
+  # ========================================
+  - aws_namespace: AWS/ApplicationELB
+    aws_metric_name: TargetResponseTime
+    aws_dimensions:
+      - LoadBalancer
+    aws_statistics:
+      - Average
+      - p99
+
+  - aws_namespace: AWS/ApplicationELB
+    aws_metric_name: RequestCount
+    aws_dimensions:
+      - LoadBalancer
+    aws_statistics:
+      - Sum
+
+  - aws_namespace: AWS/ApplicationELB
+    aws_metric_name: HTTPCode_Target_2XX_Count
+    aws_dimensions:
+      - LoadBalancer
+    aws_statistics:
+      - Sum
+
+  - aws_namespace: AWS/ApplicationELB
+    aws_metric_name: HTTPCode_Target_5XX_Count
+    aws_dimensions:
+      - LoadBalancer
+    aws_statistics:
+      - Sum
+
+  # ========================================
+  # RDS Database (if used)
+  # ========================================
+  - aws_namespace: AWS/RDS
+    aws_metric_name: CPUUtilization
+    aws_dimensions:
+      - DBInstanceIdentifier
+    aws_statistics:
+      - Average
+      - Maximum
+
+  - aws_namespace: AWS/RDS
+    aws_metric_name: DatabaseConnections
+    aws_dimensions:
+      - DBInstanceIdentifier
+    aws_statistics:
+      - Average
+
+  - aws_namespace: AWS/RDS
+    aws_metric_name: FreeableMemory
+    aws_dimensions:
+      - DBInstanceIdentifier
+    aws_statistics:
+      - Average
+
+  - aws_namespace: AWS/RDS
+    aws_metric_name: FreeStorageSpace
+    aws_dimensions:
+      - DBInstanceIdentifier
+    aws_statistics:
+      - Average
+
+  # ========================================
+  # Lambda Functions (if used)
+  # ========================================
+  - aws_namespace: AWS/Lambda
+    aws_metric_name: Invocations
+    aws_dimensions:
+      - FunctionName
+    aws_statistics:
+      - Sum
+
+  - aws_namespace: AWS/Lambda
+    aws_metric_name: Errors
+    aws_dimensions:
+      - FunctionName
+    aws_statistics:
+      - Sum
+
+  - aws_namespace: AWS/Lambda
+    aws_metric_name: Duration
+    aws_dimensions:
+      - FunctionName
+    aws_statistics:
+      - Average
+      - Maximum
+
+  - aws_namespace: AWS/Lambda
+    aws_metric_name: Throttles
+    aws_dimensions:
+      - FunctionName
+    aws_statistics:
+      - Sum

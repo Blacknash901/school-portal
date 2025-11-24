@@ -4,26 +4,26 @@ on:
   push:
     branches: [main, master]
     paths:
-      - "public/**"
-      - "src/**"
-      - ".dockerignore"
-      - "Dockerfile"
-      - "package.json"
-      - "package-lock.json"
-      - "server.js"
-      - "server-https.js"
+      - "portal-app/public/**"
+      - "portal-app/src/**"
+      - "portal-app/.dockerignore"
+      - "portal-app/Dockerfile"
+      - "portal-app/package.json"
+      - "portal-app/package-lock.json"
+      - "portal-app/server.js"
+      - "portal-app/server-https.js"
 
   pull_request:
     branches: [main, master]
     paths:
-      - "public/**"
-      - "src/**"
-      - ".dockerignore"
-      - "Dockerfile"
-      - "package.json"
-      - "package-lock.json"
-      - "server.js"
-      - "server-https.js"
+      - "portal-app/public/**"
+      - "portal-app/src/**"
+      - "portal-app/.dockerignore"
+      - "portal-app/Dockerfile"
+      - "portal-app/package.json"
+      - "portal-app/package-lock.json"
+      - "portal-app/server.js"
+      - "portal-app/server-https.js"
 
 env:
   DOCKER_REGISTRY: blacknash/cecre
@@ -43,11 +43,14 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
+          cache-dependency-path: portal-app/package-lock.json
 
       - name: Install dependencies
+        working-directory: ./portal-app
         run: npm ci
 
       - name: Run tests
+        working-directory: ./portal-app
         run: npm test -- --coverage --watchAll=false
         continue-on-error: true
 
@@ -73,14 +76,14 @@ jobs:
       - name: Extract version from package.json
         id: version
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(node -p "require('./portal-app/package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
       - name: Build and push Docker image (multi-arch)
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./portal-app
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |

@@ -1,0 +1,153 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudwatch-exporter-config
+  namespace: monitoring
+data:
+  config.yml: |
+    region: us-east-1
+    period_seconds: 60
+    range_seconds: 300
+    delay_seconds: 300
+    metrics:
+      - aws_namespace: AWS/EC2
+        aws_metric_name: CPUUtilization
+        aws_dimensions: [InstanceId]
+        aws_statistics: [Average, Maximum]
+        aws_dimensions_select:
+          InstanceId: ["*"]
+      - aws_namespace: AWS/EC2
+        aws_metric_name: NetworkIn
+        aws_dimensions: [InstanceId]
+        aws_statistics: [Sum]
+        aws_dimensions_select:
+          InstanceId: ["*"]
+      - aws_namespace: AWS/EC2
+        aws_metric_name: NetworkOut
+        aws_dimensions: [InstanceId]
+        aws_statistics: [Sum]
+        aws_dimensions_select:
+          InstanceId: ["*"]
+      - aws_namespace: AWS/EC2
+        aws_metric_name: DiskReadBytes
+        aws_dimensions: [InstanceId]
+        aws_statistics: [Sum]
+        aws_dimensions_select:
+          InstanceId: ["*"]
+      - aws_namespace: AWS/EC2
+        aws_metric_name: DiskWriteBytes
+        aws_dimensions: [InstanceId]
+        aws_statistics: [Sum]
+        aws_dimensions_select:
+          InstanceId: ["*"]
+      - aws_namespace: AWS/EC2
+        aws_metric_name: StatusCheckFailed
+        aws_dimensions: [InstanceId]
+        aws_statistics: [Maximum]
+        aws_dimensions_select:
+          InstanceId: ["*"]
+      - aws_namespace: AWS/EBS
+        aws_metric_name: VolumeReadBytes
+        aws_dimensions: [VolumeId]
+        aws_statistics: [Sum, Average]
+        aws_dimensions_select:
+          VolumeId: ["*"]
+      - aws_namespace: AWS/EBS
+        aws_metric_name: VolumeWriteBytes
+        aws_dimensions: [VolumeId]
+        aws_statistics: [Sum, Average]
+        aws_dimensions_select:
+          VolumeId: ["*"]
+      - aws_namespace: AWS/EBS
+        aws_metric_name: VolumeReadOps
+        aws_dimensions: [VolumeId]
+        aws_statistics: [Sum]
+        aws_dimensions_select:
+          VolumeId: ["*"]
+      - aws_namespace: AWS/EBS
+        aws_metric_name: VolumeWriteOps
+        aws_dimensions: [VolumeId]
+        aws_statistics: [Sum]
+        aws_dimensions_select:
+          VolumeId: ["*"]
+      - aws_namespace: AWS/EBS
+        aws_metric_name: VolumeThroughputPercentage
+        aws_dimensions: [VolumeId]
+        aws_statistics: [Average]
+        aws_dimensions_select:
+          VolumeId: ["*"]
+      - aws_namespace: AWS/EBS
+        aws_metric_name: VolumeConsumedReadWriteOps
+        aws_dimensions: [VolumeId]
+        aws_statistics: [Sum]
+        aws_dimensions_select:
+          VolumeId: ["*"]
+      - aws_namespace: AWS/S3
+        aws_metric_name: BucketSizeBytes
+        aws_dimensions: [BucketName, StorageType]
+        aws_statistics: [Average]
+        aws_dimensions_select:
+          StorageType: [StandardStorage]
+      - aws_namespace: AWS/S3
+        aws_metric_name: NumberOfObjects
+        aws_dimensions: [BucketName, StorageType]
+        aws_statistics: [Average]
+        aws_dimensions_select:
+          StorageType: [AllStorageTypes]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudwatch-exporter
+  namespace: monitoring
+  labels:
+    app: cloudwatch-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudwatch-exporter
+  template:
+    metadata:
+      labels:
+        app: cloudwatch-exporter
+    spec:
+      containers:
+        - name: cloudwatch-exporter
+          image: prom/cloudwatch-exporter:latest
+          ports:
+            - containerPort: 9106
+              name: metrics
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+          env:
+            - name: AWS_REGION
+              value: us-east-1
+            # AWS Credentials should be injected via Secrets or IAM Roles (IRSA)
+            # For simplicity in this example, we assume IAM Role attached to Node or Env Vars
+            # - name: AWS_ACCESS_KEY_ID
+            #   valueFrom: { secretKeyRef: { name: aws-creds, key: access-key } }
+            # - name: AWS_SECRET_ACCESS_KEY
+            #   valueFrom: { secretKeyRef: { name: aws-creds, key: secret-key } }
+      volumes:
+        - name: config-volume
+          configMap:
+            name: cloudwatch-exporter-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudwatch-exporter
+  namespace: monitoring
+  labels:
+    app: cloudwatch-exporter
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9106
+      targetPort: 9106
+      protocol: TCP
+      name: metrics
+  selector:
+    app: cloudwatch-exporter

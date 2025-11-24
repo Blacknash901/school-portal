@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+resources:
+  - monitor-app-deployment.yaml
+  - prometheus-config.yaml
+  - prometheus-deployment.yaml
+  - grafana-deployment.yaml
+  - grafana-dashboard.yaml
+  - kube-state-metrics.yaml
+  - storage-backup.yaml
+  - cloudwatch-exporter.yaml
+  - blackbox-exporter.yaml
+
+# Generate a secret for Grafana API key (example)
+secretGenerator:
+  - name: grafana-api-key
+    literals:
+      - api-key=change-me-in-production
+
+# Common labels applied to all resources
+commonLabels:
+  environment: production
+  managed-by: kustomize
