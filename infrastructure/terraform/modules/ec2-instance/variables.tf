@@ -38,3 +38,15 @@ variable "volume_size" {
   type        = number
   default     = 20
 }
+
+variable "iam_instance_profile" {
+  description = "IAM instance profile name for EC2 instance"
+  type        = string
+  default     = ""
+}
+
+variable "availability_zone" {
+  description = "Availability zone for the EC2 instance"
+  type        = string
+  default     = ""
+}

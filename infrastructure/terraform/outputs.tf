@@ -23,3 +23,28 @@ output "private_key_pem" {
   value       = tls_private_key.ssh_key.private_key_pem
   sensitive   = true
 }
+
+output "ebs_volume_id" {
+  description = "ID of the persistent EBS volume for K8s data"
+  value       = module.ebs_volume.volume_id
+}
+
+output "ebs_volume_size" {
+  description = "Size of the persistent EBS volume in GB"
+  value       = module.ebs_volume.volume_size
+}
+
+output "s3_bucket_name" {
+  description = "Name of the S3 bucket for K8s backups and logs"
+  value       = module.s3_bucket.bucket_id
+}
+
+output "s3_bucket_arn" {
+  description = "ARN of the S3 bucket"
+  value       = module.s3_bucket.bucket_arn
+}
+
+output "iam_role_arn" {
+  description = "ARN of the IAM role attached to EC2 instance"
+  value       = module.iam_role.role_arn
+}
