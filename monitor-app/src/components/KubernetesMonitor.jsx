@@ -84,19 +84,6 @@ const KubernetesMonitor = () => {
     return "status-error";
   };
 
-  const formatBytes = (bytes) => {
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    let value = parseInt(bytes);
-    let unitIndex = 0;
-
-    while (value >= 1024 && unitIndex < units.length - 1) {
-      value /= 1024;
-      unitIndex++;
-    }
-
-    return `${value.toFixed(2)} ${units[unitIndex]}`;
-  };
-
   const renderOverview = () => (
     <div className="overview-grid">
       <div className="overview-card">

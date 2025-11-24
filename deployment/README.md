@@ -16,8 +16,7 @@ school-portal/
 │   ├── public/
 │   ├── src/
 │   └── server*.js
-├── React-Service-Monitor/     # Monitoring UI (lives beside the portal)
-│   └── monitor-app/
+├── monitor-app/               # Monitoring UI (dashboards + server)
 ├── deployment/
 │   ├── ansible/               # Playbooks for infra + app
 │   └── docs, guides, scripts
@@ -114,8 +113,8 @@ Tips:
    - Pods expose HTTP (3000) internally and TLS via MicroK8s ingress.
    - `/metrics` is internal-only (ingress denies external access); Prometheus hits the service cluster-internally.
 
-4. **Monitor App (React-Service-Monitor/monitor-app)**
-   - Separate React app for dashboards. Follow its README for build/deploy (not automated yet).
+4. **Monitor App (`monitor-app/`)**
+   - Separate React/Vite app for dashboards. Follow `monitor-app/README.md` for build/deploy (workflow `monitor-app-deploy.yml`).
 
 ---
 

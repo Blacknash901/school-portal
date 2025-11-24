@@ -104,7 +104,7 @@ Choose one method:
 ```bash
 cd /home/ec2-user
 git clone <your-repo-url>
-cd React-Service-Monitor/monitor-app
+cd monitor-app
 ```
 
 #### Option B: SCP Upload
@@ -436,11 +436,11 @@ bash -x ./backup.sh
 
 ---
 
-**Deployment Date**: ******\_\_\_******  
-**EC2 Instance ID**: ******\_\_\_******  
-**EBS Volume ID**: ******\_\_\_******  
-**S3 Bucket**: ******\_\_\_******  
-**Deployed By**: ******\_\_\_******
+**Deployment Date**: **\*\***\_\_\_**\*\***  
+**EC2 Instance ID**: **\*\***\_\_\_**\*\***  
+**EBS Volume ID**: **\*\***\_\_\_**\*\***  
+**S3 Bucket**: **\*\***\_\_\_**\*\***  
+**Deployed By**: **\*\***\_\_\_**\*\***
 
 ---
 

@@ -9,18 +9,24 @@ const kc = new k8s.KubeConfig();
 try {
   // Try to load in-cluster config first (when running in K8s)
   kc.loadFromCluster();
-} catch (e) {
+} catch (clusterError) {
+  console.warn(
+    "Warning: Could not load in-cluster config:",
+    clusterError.message
+  );
   // Fall back to default config (for local development)
   try {
     kc.loadFromDefault();
-  } catch (err) {
-    console.warn("Warning: Could not load Kubernetes config:", err.message);
+  } catch (defaultError) {
+    console.warn(
+      "Warning: Could not load Kubernetes config:",
+      defaultError.message
+    );
   }
 }
 
 const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
 const k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);
-const k8sMetricsApi = kc.makeApiClient(k8s.Metrics);
 
 // Get cluster information
 router.get("/cluster", async (req, res) => {

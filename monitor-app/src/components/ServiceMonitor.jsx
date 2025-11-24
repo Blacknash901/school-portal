@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MONITOR_URLS } from "../config/urls";
 import "./ServiceMonitor.css";
 
@@ -40,7 +40,7 @@ const ServiceMonitor = () => {
     }
   };
 
-  const checkAllServices = async () => {
+  const checkAllServices = useCallback(async () => {
     console.log("Checking all services...");
     const results = await Promise.all(MONITOR_URLS.map((url) => checkUrl(url)));
 
@@ -74,17 +74,27 @@ const ServiceMonitor = () => {
 
       return newMetrics;
     });
-  };
+  }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const run = async () => {
+      if (!isMounted) return;
+      await checkAllServices();
+    };
+
     // Initial check
-    checkAllServices();
+    run();
 
     // Check every 30 seconds
-    const interval = setInterval(checkAllServices, 30000);
+    const interval = setInterval(run, 30000);
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [checkAllServices]);
 
   const getAverageLatency = (url) => {
     const history = metrics.latencyHistory[url] || [];

@@ -1,8 +1,5 @@
 import express from "express";
 import cors from "cors";
-import axios from "axios";
-import { createProxyMiddleware } from "http-proxy-middleware";
-import k8s from "@kubernetes/client-node";
 import prometheusRoutes from "./routes/prometheus.js";
 import grafanaRoutes from "./routes/grafana.js";
 import servicesRoutes from "./routes/services.js";
@@ -30,7 +27,7 @@ app.use("/api/services", servicesRoutes);
 // app.use('/api/kubernetes', kubernetesRoutes);
 
 // Error handling middleware
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error("Error:", err);
   res.status(500).json({
     error: "Internal server error",

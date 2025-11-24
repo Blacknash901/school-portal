@@ -57,13 +57,13 @@ router.get("/status", async (req, res) => {
 
 // Health check for specific URL
 router.post("/check", async (req, res) => {
+  const startTime = Date.now();
   try {
     const { url } = req.body;
     if (!url) {
       return res.status(400).json({ error: "URL is required" });
     }
 
-    const startTime = Date.now();
     const response = await axios.get(url, {
       timeout: 10000,
       validateStatus: () => true,

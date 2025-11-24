@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { API_ENDPOINTS } from "../config/urls";
 import "./GrafanaDashboard.css";
 
@@ -9,32 +9,7 @@ const GrafanaDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchDashboards();
-  }, []);
-
-  const fetchDashboards = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(API_ENDPOINTS.GRAFANA_DASHBOARDS);
-      const data = await response.json();
-      setDashboards(data);
-
-      // Auto-select first dashboard if available
-      if (data.length > 0) {
-        selectDashboard(data[0].uid);
-      }
-
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching Grafana dashboards:", err);
-      setError("Failed to fetch dashboards from Grafana");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const selectDashboard = async (uid) => {
+  const selectDashboard = useCallback(async (uid) => {
     try {
       setLoading(true);
 
@@ -67,11 +42,32 @@ const GrafanaDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const formatTimestamp = (timestamp) => {
-    return new Date(timestamp * 1000).toLocaleTimeString();
-  };
+  const fetchDashboards = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(API_ENDPOINTS.GRAFANA_DASHBOARDS);
+      const data = await response.json();
+      setDashboards(data);
+
+      // Auto-select first dashboard if available
+      if (data.length > 0) {
+        selectDashboard(data[0].uid);
+      }
+
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching Grafana dashboards:", err);
+      setError("Failed to fetch dashboards from Grafana");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectDashboard]);
+
+  useEffect(() => {
+    fetchDashboards();
+  }, [fetchDashboards]);
 
   const renderPanelData = (panel) => {
     if (!panel.data?.data?.result) {
