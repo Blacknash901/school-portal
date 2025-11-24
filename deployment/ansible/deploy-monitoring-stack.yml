@@ -38,6 +38,11 @@
       failed_when: false
       changed_when: "'created' in create_ns.stdout"
 
+    - name: Delete old PVCs with incorrect storage class
+      shell: |
+        /snap/bin/microk8s kubectl delete pvc prometheus-storage grafana-storage -n {{ monitoring_namespace }} --ignore-not-found=true
+      changed_when: false
+
     - name: Apply Prometheus Configuration
       command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/prometheus-config.yaml
 
