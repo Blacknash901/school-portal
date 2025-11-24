@@ -29,7 +29,10 @@
     # Logic: Use Domain if (use_ip is false AND domain is set), otherwise use IP
     use_domain: "{{ not use_ip|bool and (production_domain | default('', true) | length > 0) }}"
     redirect_uri: "{{ 'https://' + (production_domain | default('', true)) if use_domain else ('https://' + production_ip + ':30443' if use_https|bool else 'http://' + production_ip + ':3000') }}"
-    https_port: "{{ 443 if use_domain else (3443 if use_https|bool else 443) }}"
+    # When using a domain with Ingress, the external port is standard 443.
+    # The internal container port is also 443 (HTTPS_PORT env var).
+    # When using IP (NodePort), we map 30443 -> 443.
+    https_port: 443
     app_path: "/opt/{{ app_name }}"
     certs_path: "/opt/{{ app_name }}/certs"
 

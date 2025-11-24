@@ -250,26 +250,18 @@ jobs:
           DEPLOY_TYPE="${{ steps.deploy_type.outputs.type }}"
           INFRA_READY="${{ steps.check_infra.outputs.ready }}"
 
-          # Smart Deployment Logic
-          if [ "$INFRA_READY" == "false" ]; then
-            echo "⚠️ Infrastructure is missing. Forcing full deployment (Infrastructure + App)."
-            DEPLOY_TYPE="all"
+          # 1. Setup Infrastructure
+          # Run if infrastructure is missing OR if we are doing a full deployment (to ensure config is up to date)
+          if [ "$INFRA_READY" == "false" ] || [ "$DEPLOY_TYPE" == "all" ]; then
+            echo "⚙️ Running infrastructure setup (Docker + MicroK8s)..."
+            ansible-playbook -i inventory-github.yml setup-infrastructure.yml
+          else
+            echo "✅ Infrastructure is ready. Skipping setup."
           fi
 
-          case $DEPLOY_TYPE in
-            "all")
-              echo "🚀 Deploying everything (infrastructure + app)..."
-              ansible-playbook -i inventory-github.yml deploy-all.yml
-              ;;
-            "monitoring")
-              echo "📊 Deploying monitoring only..."
-              ansible-playbook -i inventory-github.yml deploy-monitoring.yml
-              ;;
-            "app"|*)
-              echo "📦 Deploying application only..."
-              ansible-playbook -i inventory-github.yml deploy-app.yml
-              ;;
-          esac
+          # 2. Deploy Application
+          echo "📦 Deploying application..."
+          ansible-playbook -i inventory-github.yml deploy-app.yml
 
       - name: Cleanup
         if: always()
