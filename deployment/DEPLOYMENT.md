@@ -1,486 +1,192 @@
-# 🚀 School Portal Deployment Guide
-
-Complete guide for deploying the School Portal application from development to production.
-
-## 📚 Table of Contents
-
-1. [Quick Start (Development)](#quick-start-development)
-2. [Production Deployment with Ansible](#production-deployment)
-3. [Manual Deployment](#manual-deployment)
-4. [Mobile/Network Testing](#mobile-testing)
-5. [Troubleshooting](#troubleshooting)
-
----
-
-## 🏃 Quick Start (Development)
-
-### Local Development with HTTPS
-
-```bash
-# 1. Install dependencies
-npm install
-
-# 2. Create .env file
-cp .env.example .env
-# Edit .env with your Azure AD credentials
-
-# 3. Build the app
-npm run build
-
-# 4. Run HTTPS server
-npm run server:https
-```
-
-Access at:
-
-- **Local**: `https://localhost:3443`
-- **Network**: `https://YOUR_IP:3443` (from phone/other devices)
-
-> **Note**: Accept the certificate warning (self-signed certificate)
-
-### Required Environment Variables
-
-Create a `.env` file in the project root:
-
-```bash
-# Azure AD (REQUIRED)
-REACT_APP_AZURE_CLIENT_ID=your-client-id
-REACT_APP_AZURE_TENANT_ID=your-tenant-id
-
-# Server
-NODE_ENV=development
-
-# Sentry (OPTIONAL)
-SENTRY_DSN=your-backend-dsn
-REACT_APP_SENTRY_DSN=your-frontend-dsn
-REACT_APP_SENTRY_ENVIRONMENT=development
-REACT_APP_ENABLE_SENTRY=true
-```
-
----
-
-## 🌐 Production Deployment
-
-### Option 1: Automated Ansible Deployment (Recommended)
-
-**Deploy to a fresh Ubuntu VM with a single command!**
-
-#### Prerequisites:
-
-- Ubuntu 20.04+ server with SSH access
-- Domain name (e.g., `portal.cecre.net`) pointing to your server
-- Ansible installed on your local machine
-
-#### Steps:
-
-1. **Install Ansible** (if not already installed):
-
-   ```bash
-   # macOS
-   brew install ansible
-
-   # Ubuntu/Debian
-   sudo apt update && sudo apt install ansible
-   ```
-
-2. **Configure inventory**:
-
-   ```bash
-   cd deployment/ansible
-   nano inventory.yml
-   ```
-
-   Update with your server details:
-
-   ```yaml
-   all:
-     hosts:
-       production:
-         ansible_host: YOUR_SERVER_IP
-         ansible_user: ubuntu
-
-         vars:
-           domain_name: portal.cecre.net
-           email: admin@cecre.net
-   ```
-
-3. **Test connection**:
-
-   ```bash
-   ansible all -i inventory.yml -m ping
-   ```
-
-4. **Deploy**:
-
-   ```bash
-   ansible-playbook -i inventory.yml playbook.yml
-   ```
-
-5. **Access your app**:
-   ```
-   https://portal.cecre.net
-   ```
-
-**What the playbook does:**
-
-- ✅ Installs Docker
-- ✅ Installs MicroK8s (Kubernetes)
-- ✅ Builds Docker image
-- ✅ Creates Kubernetes Deployment, Service, Ingress
-- ✅ Sets up Let's Encrypt SSL certificate
-- ✅ Configures environment variables from `.env`
-- ✅ Enables health checks and auto-scaling
-
-**Full documentation**: [deployment/ansible/README.md](./deployment/ansible/README.md)
-
----
-
-### Option 2: Docker Deployment
-
-```bash
-# Build image
 docker build -t school-portal:latest .
+docker run -d \
+docker logs -f school-portal
+npm run server:https
+docker build -t school-portal .
+docker run -p 3443:3443 school-portal
 
-# Run container
+# 🚀 School Portal Deployment Guide (2025 Refresh)
+
+Single reference for building, testing, and deploying the School Portal platform after the repository re-organization.
+
+## 📦 Repository Layout (Top-Level)
+
+```
+school-portal/
+├── portal-app/                # Main user-facing portal (React + Node server)
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── public/
+│   ├── src/
+│   └── server*.js
+├── React-Service-Monitor/     # Monitoring UI (lives beside the portal)
+│   └── monitor-app/
+├── deployment/
+│   ├── ansible/               # Playbooks for infra + app
+│   └── docs, guides, scripts
+├── infrastructure/
+│   └── terraform/             # AWS + networking + IAM
+└── docs/                      # Additional how-tos
+```
+
+> **Reminder:** All commands in this guide assume you are at the repo root unless otherwise noted.
+
+---
+
+## 🔑 Required GitHub Secrets
+
+| Secret                                                                                                            | Used by            | Purpose                                   |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------ | ----------------------------------------- |
+| `DOCKER_USERNAME`, `DOCKER_PASSWORD`                                                                              | `docker-build.yml` | Pushes portal image to Docker Hub.        |
+| `REACT_APP_MSAL_CLIENT_ID`, `REACT_APP_MSAL_TENANT_ID`                                                            | build + deploy     | Front-end MSAL auth.                      |
+| `REACT_APP_AZURE_CLIENT_ID`, `REACT_APP_AZURE_TENANT_ID`                                                          | build + deploy     | Backend Azure AD usage.                   |
+| `REACT_APP_REDIRECT_URI`                                                                                          | build + deploy     | Prod redirect used in MSAL config.        |
+| `REACT_APP_S3_BUCKET_NAME`, `REACT_APP_S3_REGION`, `REACT_APP_S3_ACCESS_KEY_ID`, `REACT_APP_S3_SECRET_ACCESS_KEY` | build + deploy     | Browser logging/upload config.            |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`                                                        | deploy workflow    | Server-side S3 uploads + CLI tools.       |
+| `S3_BUCKET_NAME`                                                                                                  | deploy workflow    | Backup bucket for scripts (server-side).  |
+| `REACT_APP_SENTRY_DSN`, `REACT_APP_SENTRY_ENVIRONMENT`, `REACT_APP_ENABLE_SENTRY`, `SENTRY_DSN`                   | build + deploy     | Frontend + backend telemetry.             |
+| `REACT_APP_WORDPRESS_FEED_URL`                                                                                    | build + deploy     | News feed source.                         |
+| `REACT_APP_GOOGLE_CLIENT_ID`                                                                                      | build + deploy     | Google auth integrations.                 |
+| `TF_API_TOKEN`                                                                                                    | deploy workflow    | Terraform Cloud/CLI auth.                 |
+| `PRODUCTION_DOMAIN` (optional)                                                                                    | deploy workflow    | Overrides default `portal.cecre.net`.     |
+| `USE_IP` (optional)                                                                                               | deploy workflow    | Force ingress to use IP ("true"/"false"). |
+| `USE_HTTPS` (optional)                                                                                            | deploy workflow    | Toggle HTTPS for IP deploys.              |
+| `LETSENCRYPT_EMAIL`                                                                                               | deploy workflow    | Passed into Ansible for cert-manager.     |
+| `K8S_NAMESPACE` (optional)                                                                                        | deploy workflow    | Target namespace (defaults to `default`). |
+
+> Add all secrets under **Settings → Secrets and variables → Actions** in your GitHub repository.
+
+---
+
+## 💻 Local Development (Portal)
+
+```bash
+cd portal-app
+npm install
+cp .env.example .env   # add Azure + S3 + Sentry values
+npm run server:https   # serves https://localhost:3443
+```
+
+Tips:
+
+- Update `.env` inside `portal-app/` (CI generates one automatically during deploys).
+- Certificates for local HTTPS live in `portal-app/certs/`.
+- For mobile testing, run `ipconfig getifaddr en0` and visit `https://<IP>:3443` (accept warning).
+
+---
+
+## 🔁 CI/CD Overview
+
+### 1. Docker Build Pipeline (`.github/workflows/docker-build.yml`)
+
+- Triggered on PRs/pushes touching `portal-app/**`.
+- Jobs:
+  - **test**: `npm ci` + Jest from `portal-app/`.
+  - **build**: Logs in to Docker Hub, builds multi-arch image from `portal-app/`, pushes `blacknash/cecre:<version>` and `latest`.
+- Build arguments inject all React `REACT_APP_*` secrets, so missing secrets cause build failures.
+
+### 2. Deploy Pipelines
+
+- **`deploy.yml`** (hosted runner) & **`deploy-self-hosted.yml`** (runner on the EC2 box) share logic:
+  1. Extract version from `portal-app/package.json` (or manual input).
+  2. Generate `.env` from secrets (writing to repo root for Ansible).
+  3. Use Terraform outputs to grab EC2 IP + SSH key (stored temporarily as `private_key.pem`).
+  4. Generate dynamic Ansible inventory with runtime values and flags (`use_ip`, `use_https`, domain, etc.).
+  5. Decide what to run (`deploy-all.yml`, `deploy-app.yml`, `deploy-monitoring.yml`) depending on MicroK8s availability and requested `deploy_type`.
+
+> Keep Terraform state in sync before running `deploy.yml` locally (`terraform init && terraform plan/apply` inside `infrastructure/terraform`).
+
+---
+
+## 🧠 How Deployments Actually Work
+
+1. **Terraform (infrastructure/terraform)**
+
+   - Creates VPC, subnets, the EC2 host, IAM role, S3 bucket, IAM policies, Elastic IP, etc.
+   - Provides outputs consumed by workflows (`ec2_instance_1_public_ip`, EBS info, private key).
+
+2. **Ansible (deployment/ansible)**
+
+   - `setup-infrastructure.yml`: configures Docker, MicroK8s, mounts the EBS volume, installs AWS CLI + Snap packages, configures firewall.
+   - `deploy-app.yml`: pushes Docker image into MicroK8s, applies manifests, wires TLS/ingress, etc.
+   - `deploy-monitoring.yml`: optional Prometheus/Grafana stack (uses templates under `deployment/`).
+
+3. **Portal Runtime (portal-app/)**
+
+   - Builds React static assets + Node API.
+   - Pods expose HTTP (3000) internally and TLS via MicroK8s ingress.
+   - `/metrics` is internal-only (ingress denies external access); Prometheus hits the service cluster-internally.
+
+4. **Monitor App (React-Service-Monitor/monitor-app)**
+   - Separate React app for dashboards. Follow its README for build/deploy (not automated yet).
+
+---
+
+## 📜 Manual Deployment Recipes
+
+### Run the Portal Locally via Docker
+
+```bash
+cd portal-app
+docker build -t school-portal:local .
 docker run -d \
   -p 3000:3000 \
   -p 3443:3443 \
   --env-file .env \
   --name school-portal \
-  school-portal:latest
-
-# View logs
-docker logs -f school-portal
+  school-portal:local
 ```
 
----
-
-### Option 3: Kubernetes (Manual)
+### Trigger full Ansible deployment yourself
 
 ```bash
-# Create namespace
-kubectl create namespace school-portal
-
-# Create secrets from .env
-kubectl create secret generic school-portal-secrets \
-  --from-env-file=.env \
-  --namespace=school-portal
-
-# Apply Kubernetes manifests
-kubectl apply -f k8s-production.yaml
-
-# Check status
-kubectl get pods -n school-portal
-kubectl get svc -n school-portal
-kubectl get ingress -n school-portal
+cd deployment/ansible
+ansible-playbook -i inventory-production-ssh.yml deploy-all.yml
 ```
 
----
-
-## 📱 Mobile/Network Testing
-
-### Fix: Microsoft Login Redirect Issue
-
-**Problem**: After signing in from phone, redirects to `localhost:3000`
-
-**Solution**: Add your IP/domain to Azure AD redirect URIs
-
-1. Go to **Azure Portal** → **App Registrations** → Your app → **Authentication**
-2. Add these redirect URIs:
-   ```
-   http://localhost:3000
-   https://localhost:3443
-   https://YOUR_IP:3443
-   https://portal.cecre.net
-   ```
-3. Save
-
-**Full guide**: [docs/guides/AZURE-AD-MOBILE-ACCESS.md](./docs/guides/AZURE-AD-MOBILE-ACCESS.md)
-
-### Access from Phone
-
-1. **Find your Mac's IP**:
-
-   ```bash
-   ipconfig getifaddr en0
-   ```
-
-2. **Start HTTPS server**:
-
-   ```bash
-   npm run server:https
-   ```
-
-3. **On your phone**, go to:
-
-   ```
-   https://YOUR_IP:3443
-   ```
-
-4. Accept the certificate warning
-
----
-
-## 🔧 Configuration
-
-### Azure AD Setup
-
-1. **Create App Registration**:
-
-   - Go to Azure Portal → Azure AD → App registrations
-   - New registration
-   - Name: "School Portal"
-   - Supported account types: Single tenant
-   - Redirect URI: `https://localhost:3443` (add more later)
-
-2. **Configure Authentication**:
-
-   - Platform: Single-page application
-   - Add all redirect URIs (localhost, IPs, domains)
-   - Enable ID tokens (optional)
-
-3. **API Permissions**:
-
-   - Microsoft Graph:
-     - `User.Read`
-     - `User.ReadBasic.All`
-     - `GroupMember.Read.All` (for group-based access)
-
-4. **Copy credentials** to `.env`:
-   - Application (client) ID → `REACT_APP_AZURE_CLIENT_ID`
-   - Directory (tenant) ID → `REACT_APP_AZURE_TENANT_ID`
-
-### SSL Certificates
-
-#### Development (Self-signed):
+### Redeploy just the app
 
 ```bash
-# Already generated in certs/
-# Valid for 365 days
+cd deployment/ansible
+ansible-playbook -i inventory-production-ssh.yml deploy-app.yml
 ```
 
-#### Production (Let's Encrypt):
+### Interacting with MicroK8s
 
 ```bash
-# Using Ansible (automatic)
-ansible-playbook -i deployment/ansible/inventory.yml deployment/ansible/playbook.yml
-
-# OR manually with certbot
-sudo certbot certonly --standalone -d portal.cecre.net
-```
-
-**Full guide**: [docs/guides/HTTPS-SETUP-GUIDE.md](./docs/guides/HTTPS-SETUP-GUIDE.md)
-
----
-
-## 🐛 Troubleshooting
-
-### Build fails
-
-```bash
-# Clear cache and rebuild
-rm -rf node_modules build
-npm install
-npm run build
-```
-
-### HTTPS certificate error
-
-**Development**:
-
-- Click "Advanced" → "Proceed to localhost"
-- This is normal for self-signed certificates
-
-**Production**:
-
-- Check domain DNS points to server
-- Verify port 80/443 are open (for Let's Encrypt)
-- Check certificate status: `kubectl get certificate`
-
-### Login redirects to localhost
-
-**Fix**: Add your IP/domain to Azure AD redirect URIs
-
-- See [Mobile Testing](#mobile-testing) section
-
-### Pods not starting (Kubernetes)
-
-```bash
-# Check logs
-kubectl logs -l app=school-portal -n school-portal
-
-# Check pod status
-kubectl describe pod -l app=school-portal -n school-portal
-
-# Common issues:
-# - Missing environment variables (check secrets)
-# - Image pull errors (check registry)
-# - Resource limits (check node resources)
-```
-
-### Let's Encrypt certificate not issuing
-
-```bash
-# Check certificate status
-kubectl describe certificate school-portal-tls
-
-# Check cert-manager logs
-kubectl logs -n cert-manager -l app=cert-manager
-
-# Common issues:
-# - DNS not pointing to server
-# - Port 80 blocked (needed for HTTP-01 challenge)
-# - Invalid email in ClusterIssuer
+ssh ubuntu@<EC2_IP>
+microk8s kubectl get pods -A
+microk8s kubectl logs -n default deployment/school-portal
 ```
 
 ---
 
-## 📊 Monitoring & Logs
+## 🧪 Verification & Troubleshooting
 
-### Local Development
-
-```bash
-# Server logs (console)
-npm run server:https
-
-# Browser console
-# Open DevTools → Console
-```
-
-### Production (Kubernetes)
-
-```bash
-# Application logs
-kubectl logs -f -l app=school-portal -n school-portal
-
-# All events
-kubectl get events -n school-portal --sort-by='.lastTimestamp'
-
-# Resource usage
-kubectl top pods -n school-portal
-kubectl top nodes
-
-# Health check
-curl https://portal.cecre.net/api/health
-```
-
-### Sentry (Error Tracking)
-
-If configured, view errors at: https://sentry.io/
+- **Health checks**: `curl https://portal.cecre.net/api/health` or `curl http://localhost:3000/api/health` (inside pod).
+- **Metrics**: From the EC2 host: `curl http://127.0.0.1:3000/metrics` or port-forward the deployment.
+- **Ingress debugging**: `microk8s kubectl describe ingress school-portal-ingress`.
+- **Storage**: `lsblk` on the host should show the 64 GB EBS volume mounted at `/var/snap/microk8s/common`.
+- **Secrets mismatch**: If GitHub workflows fail early, confirm every secret in the table above exists.
 
 ---
 
-## 🔐 Security Best Practices
+## ✅ Deployment Checklist
 
-### Production Checklist:
-
-- [ ] Use HTTPS only (force SSL redirect)
-- [ ] Environment variables in Kubernetes Secrets (not in code)
-- [ ] Enable Sentry error tracking
-- [ ] Set up firewall (ports 22, 80, 443 only)
-- [ ] Disable SSH password authentication
-- [ ] Use strong Azure AD app secrets
-- [ ] Regular security updates (`apt update && apt upgrade`)
-- [ ] Monitor logs for suspicious activity
-- [ ] Set up backup strategy
-- [ ] Configure CORS properly (limit origins)
-- [ ] Enable rate limiting (already configured)
-- [ ] Use Content Security Policy (already configured)
+1. Terraform state is applied and outputs accessible.
+2. GitHub secrets table is complete (double-check new ones after future features).
+3. DNS (`portal.cecre.net`) points to the current Elastic IP.
+4. `docker-build.yml` succeeded (image tagged with the desired version).
+5. `deploy.yml` (or the self-hosted variant) finished without errors.
+6. Portal loads over HTTPS, `/metrics` is blocked externally but readable internally.
+7. Monitoring stack (optional) is deployed if `deploy-monitoring.yml` ran.
 
 ---
 
-## 📁 Project Structure
+**Need more?** See:
 
-```
-school-portal/
-├── deployment/
-│   └── ansible/
-│       ├── playbook.yml       # Main Ansible playbook
-│       ├── inventory.yml      # Server configuration
-│       └── README.md          # Ansible guide
-├── docs/
-│   └── guides/
-│       ├── HTTPS-SETUP-GUIDE.md
-│       └── AZURE-AD-MOBILE-ACCESS.md
-├── src/                       # React app source
-├── build/                     # Production build (generated)
-├── certs/                     # SSL certificates (development)
-├── Dockerfile                 # Docker image definition
-├── server.js                  # HTTP server
-├── server-https.js            # HTTPS server
-├── k8s-production.yaml        # Kubernetes manifests
-├── .env                       # Environment variables (DO NOT COMMIT)
-└── DEPLOYMENT.md             # This file
-```
+- `deployment/ansible/README.md` for playbook internals.
+- `docs/guides/HTTPS-SETUP-GUIDE.md` for TLS specifics.
+- `docs/guides/AZURE-AD-MOBILE-ACCESS.md` for mobile login tips.
 
----
-
-## 🆘 Support & Resources
-
-### Documentation:
-
-- [Ansible Deployment](./deployment/ansible/README.md)
-- [HTTPS Setup](./docs/guides/HTTPS-SETUP-GUIDE.md)
-- [Mobile Access](./docs/guides/AZURE-AD-MOBILE-ACCESS.md)
-- [Kubernetes Deployment](./k8s-production.yaml)
-
-### External Resources:
-
-- [MicroK8s Docs](https://microk8s.io/docs)
-- [Azure AD Documentation](https://docs.microsoft.com/azure/active-directory/)
-- [Let's Encrypt](https://letsencrypt.org/)
-- [Docker Docs](https://docs.docker.com/)
-
-### Quick Commands:
-
-```bash
-# Development
-npm run server:https          # Start HTTPS server
-npm run build                 # Build for production
-
-# Docker
-docker build -t school-portal .
-docker run -p 3443:3443 school-portal
-
-# Kubernetes
-kubectl get all -n school-portal
-kubectl logs -f -l app=school-portal
-kubectl rollout restart deployment/school-portal
-
-# Ansible
-ansible-playbook -i deployment/ansible/inventory.yml deployment/ansible/playbook.yml
-```
-
----
-
-## 🎉 Deployment Checklist
-
-### Pre-deployment:
-
-- [ ] `.env` file configured with all variables
-- [ ] Azure AD app registration created
-- [ ] Redirect URIs configured in Azure AD
-- [ ] Domain DNS pointing to server (production)
-- [ ] SSH access to server
-
-### Deployment:
-
-- [ ] Run Ansible playbook OR manual deployment
-- [ ] Verify pods are running
-- [ ] Check SSL certificate issued
-- [ ] Test application access
-- [ ] Test Microsoft login flow
-
-### Post-deployment:
-
-- [ ] Monitor logs for errors
-- [ ] Set up Sentry (optional)
-- [ ] Configure backups
-- [ ] Set up monitoring/alerts
-- [ ] Document any customizations
-
----
-
-**Happy Deploying! 🚀**
-
-For issues or questions, check the troubleshooting section or review the detailed guides in `docs/guides/`.
+Happy shipping! 🚀
