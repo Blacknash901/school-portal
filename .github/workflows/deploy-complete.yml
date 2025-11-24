@@ -94,7 +94,7 @@ jobs:
           cd infrastructure/terraform
           # If we didn't apply (e.g. portal-only deploy), we still need outputs
           if [ ! -f tfplan ]; then terraform init -input=false; fi
-          
+
           IP=$(terraform output -raw ec2_instance_1_public_ip)
           terraform output -raw private_key_pem > ../../private_key.pem
           chmod 600 ../../private_key.pem
