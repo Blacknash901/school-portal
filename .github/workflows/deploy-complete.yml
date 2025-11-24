@@ -84,23 +84,78 @@ jobs:
     if: ${{ always() && (github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'portal-only') && needs.deploy-infra.result != 'failure' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Extract Portal Version
-        id: portal_ver
+      - name: Extract version from package.json
+        id: version
         run: |
           VERSION="${{ github.event.inputs.portal_version }}"
           if [ -z "$VERSION" ]; then
             VERSION=$(node -p "require('./portal-app/package.json').version")
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "App version: $VERSION"
 
-      # --- Fetch Infrastructure Info ---
+      - name: Set deployment type
+        id: deploy_type
+        run: |
+          TYPE="${{ github.event.inputs.deploy_type }}"
+          if [ "$TYPE" == "portal-only" ]; then
+            TYPE="app"
+          fi
+          if [ -z "$TYPE" ]; then
+            TYPE="app"
+          fi
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
+          echo "Deployment type: $TYPE"
+
+      - name: Generate .env file from GitHub secrets
+        run: |
+          cat > .env <<EOF
+          # Generated from GitHub Secrets - DO NOT COMMIT
+          # Azure Active Directory
+          REACT_APP_MSAL_CLIENT_ID=${{ secrets.REACT_APP_MSAL_CLIENT_ID }}
+          REACT_APP_MSAL_TENANT_ID=${{ secrets.REACT_APP_MSAL_TENANT_ID }}
+          REACT_APP_AZURE_CLIENT_ID=${{ secrets.REACT_APP_AZURE_CLIENT_ID }}
+          REACT_APP_AZURE_TENANT_ID=${{ secrets.REACT_APP_AZURE_TENANT_ID }}
+          REACT_APP_REDIRECT_URI=${{ secrets.REACT_APP_REDIRECT_URI }}
+
+          # AWS S3 Logging
+          REACT_APP_S3_BUCKET_NAME=${{ secrets.REACT_APP_S3_BUCKET_NAME }}
+          REACT_APP_S3_REGION=${{ secrets.REACT_APP_S3_REGION }}
+          REACT_APP_S3_ACCESS_KEY_ID=${{ secrets.REACT_APP_S3_ACCESS_KEY_ID }}
+          REACT_APP_S3_SECRET_ACCESS_KEY=${{ secrets.REACT_APP_S3_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+
+          # Sentry Error Tracking
+          REACT_APP_SENTRY_DSN=${{ secrets.REACT_APP_SENTRY_DSN }}
+          REACT_APP_SENTRY_ENVIRONMENT=${{ secrets.REACT_APP_SENTRY_ENVIRONMENT }}
+          REACT_APP_ENABLE_SENTRY=${{ secrets.REACT_APP_ENABLE_SENTRY }}
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+
+          # WordPress RSS Feed
+          REACT_APP_WORDPRESS_FEED_URL=${{ secrets.REACT_APP_WORDPRESS_FEED_URL }}
+
+          # Google OAuth
+          REACT_APP_GOOGLE_CLIENT_ID=${{ secrets.REACT_APP_GOOGLE_CLIENT_ID }}
+
+          # Server Configuration
+          NODE_ENV=production
+          PORT=3000
+          HTTPS_PORT=443
+          EOF
+          echo "✅ .env file generated"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.9.0
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          terraform_wrapper: false
 
       - name: Fetch Terraform Outputs
         id: tf_outputs
@@ -111,58 +166,27 @@ jobs:
         run: |
           cd infrastructure/terraform
           terraform init -input=false
+
           IP=$(terraform output -raw ec2_instance_1_public_ip)
           terraform output -raw private_key_pem > ../../private_key.pem
           chmod 600 ../../private_key.pem
+
           echo "ip=$IP" >> $GITHUB_OUTPUT
+          echo "✅ Fetched IP: $IP"
 
-          # Setup SSH for Ansible
-          mkdir -p ~/.ssh
-          cp ../../private_key.pem ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-
-      - name: Determine Domain
-        id: domain
+      - name: Determine production domain
+        id: production_domain
+        env:
+          PRODUCTION_DOMAIN_SECRET: ${{ secrets.PRODUCTION_DOMAIN }}
         run: |
-          DOMAIN="${{ secrets.PRODUCTION_DOMAIN }}"
-          [ -z "$DOMAIN" ] && DOMAIN="portal.cecre.net"
+          DOMAIN="$PRODUCTION_DOMAIN_SECRET"
+          if [ -z "$DOMAIN" ]; then
+            DOMAIN="portal.cecre.net"
+          fi
           echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
+          echo "✅ Using production domain: $DOMAIN"
 
-      - name: Install Ansible
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-pip
-          pip3 install ansible
-
-      - name: Generate .env file
-        run: |
-          cat > .env <<EOF
-          # Generated from GitHub Secrets
-          REACT_APP_MSAL_CLIENT_ID=${{ secrets.REACT_APP_MSAL_CLIENT_ID }}
-          REACT_APP_MSAL_TENANT_ID=${{ secrets.REACT_APP_MSAL_TENANT_ID }}
-          REACT_APP_AZURE_CLIENT_ID=${{ secrets.REACT_APP_AZURE_CLIENT_ID }}
-          REACT_APP_AZURE_TENANT_ID=${{ secrets.REACT_APP_AZURE_TENANT_ID }}
-          REACT_APP_REDIRECT_URI=${{ secrets.REACT_APP_REDIRECT_URI }}
-          REACT_APP_S3_BUCKET_NAME=${{ secrets.REACT_APP_S3_BUCKET_NAME }}
-          REACT_APP_S3_REGION=${{ secrets.REACT_APP_S3_REGION }}
-          REACT_APP_S3_ACCESS_KEY_ID=${{ secrets.REACT_APP_S3_ACCESS_KEY_ID }}
-          REACT_APP_S3_SECRET_ACCESS_KEY=${{ secrets.REACT_APP_S3_SECRET_ACCESS_KEY }}
-          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION=${{ secrets.AWS_REGION }}
-          S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-          REACT_APP_SENTRY_DSN=${{ secrets.REACT_APP_SENTRY_DSN }}
-          REACT_APP_SENTRY_ENVIRONMENT=${{ secrets.REACT_APP_SENTRY_ENVIRONMENT }}
-          REACT_APP_ENABLE_SENTRY=${{ secrets.REACT_APP_ENABLE_SENTRY }}
-          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-          REACT_APP_WORDPRESS_FEED_URL=${{ secrets.REACT_APP_WORDPRESS_FEED_URL }}
-          REACT_APP_GOOGLE_CLIENT_ID=${{ secrets.REACT_APP_GOOGLE_CLIENT_ID }}
-          NODE_ENV=production
-          PORT=3000
-          HTTPS_PORT=443
-          EOF
-
-      - name: Generate Inventory
+      - name: Generate dynamic inventory file
         run: |
           mkdir -p deployment/ansible
           cat > deployment/ansible/inventory-github.yml <<EOF
@@ -171,27 +195,94 @@ jobs:
               production-server:
                 ansible_host: ${{ steps.tf_outputs.outputs.ip }}
                 ansible_user: ubuntu
-                ansible_ssh_private_key_file: ~/.ssh/id_rsa
+                ansible_ssh_private_key_file: ${{ github.workspace }}/private_key.pem
                 ansible_python_interpreter: /usr/bin/python3
                 ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
                 ansible_become: true
                 ansible_become_method: sudo
+                ansible_become_password: ""
                 ansible_become_flags: "-n"
+
             vars:
               app_name: school-portal
-              app_version: "${{ steps.portal_ver.outputs.version }}"
+              app_version: "${{ steps.version.outputs.version }}"
               docker_registry: ${{ env.DOCKER_REGISTRY_PORTAL }}
               production_ip: ${{ steps.tf_outputs.outputs.ip }}
-              production_domain: "${{ steps.domain.outputs.domain }}"
+              production_domain: "${{ steps.production_domain.outputs.domain }}"
               use_ip: "${{ secrets.USE_IP || 'false' }}"
               use_https: "${{ secrets.USE_HTTPS || 'true' }}"
               letsencrypt_email: ${{ secrets.LETSENCRYPT_EMAIL }}
               k8s_namespace: ${{ secrets.K8S_NAMESPACE || 'default' }}
           EOF
+          echo "✅ Inventory file generated"
 
-      - name: Deploy Portal App
-        working-directory: ./deployment/ansible
-        run: ansible-playbook -i inventory-github.yml deploy-app.yml
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          # Key is already saved to private_key.pem in workspace root
+          ssh-keyscan -H ${{ steps.tf_outputs.outputs.ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "✅ SSH key configured"
+
+      - name: Check Infrastructure Status
+        id: check_infra
+        run: |
+          echo "🔍 Checking if MicroK8s is installed on ${{ steps.tf_outputs.outputs.ip }}..."
+          if ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@${{ steps.tf_outputs.outputs.ip }} "which microk8s"; then
+            echo "✅ Infrastructure is ready"
+            echo "ready=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Infrastructure missing (MicroK8s not found)"
+            echo "ready=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install ansible
+          ansible --version
+          echo "✅ Ansible installed"
+
+      - name: Deploy with Ansible
+        run: |
+          cd deployment/ansible
+
+          DEPLOY_TYPE="${{ steps.deploy_type.outputs.type }}"
+          INFRA_READY="${{ steps.check_infra.outputs.ready }}"
+
+          # Smart Deployment Logic
+          if [ "$INFRA_READY" == "false" ]; then
+            echo "⚠️ Infrastructure is missing. Forcing full deployment (Infrastructure + App)."
+            DEPLOY_TYPE="all"
+          fi
+
+          case $DEPLOY_TYPE in
+            "all")
+              echo "🚀 Deploying everything (infrastructure + app)..."
+              ansible-playbook -i inventory-github.yml deploy-all.yml
+              ;;
+            "monitoring")
+              echo "📊 Deploying monitoring only..."
+              ansible-playbook -i inventory-github.yml deploy-monitoring.yml
+              ;;
+            "app"|*)
+              echo "📦 Deploying application only..."
+              ansible-playbook -i inventory-github.yml deploy-app.yml
+              ;;
+          esac
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f private_key.pem
+          echo "✅ Cleanup completed"
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "📦 Version: ${{ steps.version.outputs.version }}"
+          echo "🌐 URL: ${{ secrets.REACT_APP_REDIRECT_URI }}"
 
       - name: Test Portal App (Curl)
         run: |
