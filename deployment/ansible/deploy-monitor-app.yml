@@ -21,6 +21,12 @@
     app_name: "monitor-app"
 
   tasks:
+    - name: Create monitoring namespace
+      command: /snap/bin/microk8s kubectl create namespace {{ monitoring_namespace }}
+      register: create_ns
+      failed_when: false
+      changed_when: "'created' in create_ns.stdout"
+
     - name: Create monitoring directory
       file:
         path: "{{ k8s_dir }}"
