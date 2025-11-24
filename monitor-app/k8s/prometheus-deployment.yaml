@@ -6,7 +6,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: ebs-sc # Using EBS storage class
+  storageClassName: microk8s-hostpath
   resources:
     requests:
       storage: 50Gi
