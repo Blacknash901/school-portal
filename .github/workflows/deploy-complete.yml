@@ -29,7 +29,7 @@ env:
 
 jobs:
   # ============================================================================
-  # JOB 1: PREPARE & DEPLOY INFRASTRUCTURE (Terraform + Ansible Setup)
+  # JOB 1: DEPLOY INFRASTRUCTURE (Terraform Only)
   # ============================================================================
   deploy-infra:
     name: 1. Deploy Infrastructure
@@ -41,15 +41,51 @@ jobs:
       TF_VAR_aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
       TF_VAR_aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
-    outputs:
-      ip: ${{ steps.tf_outputs.outputs.ip }}
-      portal_version: ${{ steps.portal_ver.outputs.version }}
-      monitor_version: ${{ steps.monitor_ver.outputs.version }}
-      domain: ${{ steps.domain.outputs.domain }}
     steps:
       - uses: actions/checkout@v4
 
-      # --- Version Extraction ---
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.9.0
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Init
+        working-directory: ./infrastructure/terraform
+        run: terraform init -input=false
+
+      - name: Terraform Validate
+        working-directory: ./infrastructure/terraform
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ./infrastructure/terraform
+        run: terraform plan -out=tfplan -input=false
+
+      - name: Terraform Apply
+        if: ${{ github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'infra-only' }}
+        working-directory: ./infrastructure/terraform
+        run: terraform apply -auto-approve -input=false tfplan
+
+      - name: Ping Infrastructure
+        continue-on-error: true
+        working-directory: ./infrastructure/terraform
+        run: |
+          IP=$(terraform output -raw ec2_instance_1_public_ip)
+          echo "Pinging $IP..."
+          ping -c 3 $IP || true
+
+  # ============================================================================
+  # JOB 2: DEPLOY PORTAL APP
+  # ============================================================================
+  deploy-portal:
+    name: 2. Deploy Portal App
+    needs: deploy-infra
+    if: ${{ always() && (github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'portal-only') && needs.deploy-infra.result != 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Extract Portal Version
         id: portal_ver
         run: |
@@ -59,69 +95,28 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Extract Monitor Version
-        id: monitor_ver
-        run: |
-          VERSION="${{ github.event.inputs.monitor_version }}"
-          if [ -z "$VERSION" ]; then
-            VERSION="latest"
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      # --- Terraform ---
+      # --- Fetch Infrastructure Info ---
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.9.0
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-      - name: Terraform Init
-        working-directory: ./infrastructure/terraform
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: terraform init -input=false
-
-      - name: Terraform Validate
-        working-directory: ./infrastructure/terraform
-        run: terraform validate
-
-      - name: Terraform Plan
-        working-directory: ./infrastructure/terraform
-        env:
-          TF_VAR_aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          TF_VAR_aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: terraform plan -out=tfplan -input=false
-
-      - name: Terraform Apply
-        if: ${{ github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'infra-only' }}
-        working-directory: ./infrastructure/terraform
-        env:
-          TF_VAR_aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          TF_VAR_aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: terraform apply -auto-approve -input=false tfplan
-
       - name: Fetch Terraform Outputs
         id: tf_outputs
         env:
-          TF_IN_AUTOMATION: true
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
         run: |
           cd infrastructure/terraform
-          # If we didn't apply (e.g. portal-only deploy), we still need outputs
-          if [ ! -f tfplan ]; then terraform init -input=false; fi
-
+          terraform init -input=false
           IP=$(terraform output -raw ec2_instance_1_public_ip)
           terraform output -raw private_key_pem > ../../private_key.pem
           chmod 600 ../../private_key.pem
           echo "ip=$IP" >> $GITHUB_OUTPUT
 
-          # Upload key for next jobs
+          # Setup SSH for Ansible
           mkdir -p ~/.ssh
           cp ../../private_key.pem ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
@@ -132,32 +127,6 @@ jobs:
           DOMAIN="${{ secrets.PRODUCTION_DOMAIN }}"
           [ -z "$DOMAIN" ] && DOMAIN="portal.cecre.net"
           echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
-
-      - name: Cache SSH Key
-        uses: actions/cache@v3
-        with:
-          path: ~/.ssh/id_rsa
-          key: ssh-key-${{ github.run_id }}
-
-      - name: Test Infrastructure (SSH)
-        if: ${{ github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'infra-only' }}
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ steps.tf_outputs.outputs.ip }} "uptime"  # ============================================================================
-  # JOB 2: DEPLOY PORTAL APP
-  # ============================================================================
-  deploy-portal:
-    name: 2. Deploy Portal App
-    needs: deploy-infra
-    if: ${{ github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'portal-only' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Restore SSH Key
-        uses: actions/cache@v3
-        with:
-          path: ~/.ssh/id_rsa
-          key: ssh-key-${{ github.run_id }}
 
       - name: Install Ansible
         run: |
@@ -200,7 +169,7 @@ jobs:
           all:
             hosts:
               production-server:
-                ansible_host: ${{ needs.deploy-infra.outputs.ip }}
+                ansible_host: ${{ steps.tf_outputs.outputs.ip }}
                 ansible_user: ubuntu
                 ansible_ssh_private_key_file: ~/.ssh/id_rsa
                 ansible_python_interpreter: /usr/bin/python3
@@ -210,10 +179,10 @@ jobs:
                 ansible_become_flags: "-n"
             vars:
               app_name: school-portal
-              app_version: "${{ needs.deploy-infra.outputs.portal_version }}"
+              app_version: "${{ steps.portal_ver.outputs.version }}"
               docker_registry: ${{ env.DOCKER_REGISTRY_PORTAL }}
-              production_ip: ${{ needs.deploy-infra.outputs.ip }}
-              production_domain: "${{ needs.deploy-infra.outputs.domain }}"
+              production_ip: ${{ steps.tf_outputs.outputs.ip }}
+              production_domain: "${{ steps.domain.outputs.domain }}"
               use_ip: "${{ secrets.USE_IP || 'false' }}"
               use_https: "${{ secrets.USE_HTTPS || 'true' }}"
               letsencrypt_email: ${{ secrets.LETSENCRYPT_EMAIL }}
@@ -228,7 +197,7 @@ jobs:
         run: |
           # Wait a bit for ingress
           sleep 30
-          curl -k -v https://${{ needs.deploy-infra.outputs.ip }}:3443 || curl -v http://${{ needs.deploy-infra.outputs.ip }}:3000
+          curl -k -v https://${{ steps.tf_outputs.outputs.ip }}:3443 || curl -v http://${{ steps.tf_outputs.outputs.ip }}:3000
 
   # ============================================================================
   # JOB 3: DEPLOY MONITOR APP
@@ -236,16 +205,45 @@ jobs:
   deploy-monitor-app:
     name: 3. Deploy Monitor App
     needs: [deploy-infra, deploy-portal]
-    if: ${{ always() && (github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'monitor-app-only') && needs.deploy-infra.result == 'success' }}
+    if: ${{ always() && (github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'monitor-app-only') && needs.deploy-infra.result != 'failure' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore SSH Key
-        uses: actions/cache@v3
+      - name: Extract Monitor Version
+        id: monitor_ver
+        run: |
+          VERSION="${{ github.event.inputs.monitor_version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="latest"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # --- Fetch Infrastructure Info ---
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
-          path: ~/.ssh/id_rsa
-          key: ssh-key-${{ github.run_id }}
+          terraform_version: 1.9.0
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Fetch Terraform Outputs
+        id: tf_outputs
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: |
+          cd infrastructure/terraform
+          terraform init -input=false
+          IP=$(terraform output -raw ec2_instance_1_public_ip)
+          terraform output -raw private_key_pem > ../../private_key.pem
+          chmod 600 ../../private_key.pem
+          echo "ip=$IP" >> $GITHUB_OUTPUT
+
+          # Setup SSH for Ansible
+          mkdir -p ~/.ssh
+          cp ../../private_key.pem ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
       - name: Install Ansible
         run: |
@@ -260,7 +258,7 @@ jobs:
           all:
             hosts:
               production-server:
-                ansible_host: ${{ needs.deploy-infra.outputs.ip }}
+                ansible_host: ${{ steps.tf_outputs.outputs.ip }}
                 ansible_user: ubuntu
                 ansible_ssh_private_key_file: ~/.ssh/id_rsa
                 ansible_python_interpreter: /usr/bin/python3
@@ -270,7 +268,7 @@ jobs:
                 ansible_become_flags: "-n"
             vars:
               docker_registry: ${{ env.DOCKER_REGISTRY_MONITOR }}
-              app_version: "${{ needs.deploy-infra.outputs.monitor_version }}"
+              app_version: "${{ steps.monitor_ver.outputs.version }}"
               monitoring_namespace: monitoring
           EOF
 
@@ -280,8 +278,7 @@ jobs:
 
       - name: Test Monitor App
         run: |
-          # Basic check if pod is running via SSH
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ needs.deploy-infra.outputs.ip }} "/snap/bin/microk8s kubectl get pods -n monitoring -l app=monitor-app | grep monitor-app"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ steps.tf_outputs.outputs.ip }} "/snap/bin/microk8s kubectl get pods -n monitoring -l app=monitor-app | grep monitor-app"
 
   # ============================================================================
   # JOB 4: DEPLOY MONITORING STACK (Prometheus/Grafana)
@@ -289,16 +286,36 @@ jobs:
   deploy-monitor-stack:
     name: 4. Deploy Monitoring Stack
     needs: [deploy-infra, deploy-monitor-app]
-    if: ${{ always() && (github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'monitor-stack-only') && needs.deploy-infra.result == 'success' }}
+    if: ${{ always() && (github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'monitor-stack-only') && needs.deploy-infra.result != 'failure' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore SSH Key
-        uses: actions/cache@v3
+      # --- Fetch Infrastructure Info ---
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
-          path: ~/.ssh/id_rsa
-          key: ssh-key-${{ github.run_id }}
+          terraform_version: 1.9.0
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Fetch Terraform Outputs
+        id: tf_outputs
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: |
+          cd infrastructure/terraform
+          terraform init -input=false
+          IP=$(terraform output -raw ec2_instance_1_public_ip)
+          terraform output -raw private_key_pem > ../../private_key.pem
+          chmod 600 ../../private_key.pem
+          echo "ip=$IP" >> $GITHUB_OUTPUT
+
+          # Setup SSH for Ansible
+          mkdir -p ~/.ssh
+          cp ../../private_key.pem ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
       - name: Install Ansible
         run: |
@@ -313,7 +330,7 @@ jobs:
           all:
             hosts:
               production-server:
-                ansible_host: ${{ needs.deploy-infra.outputs.ip }}
+                ansible_host: ${{ steps.tf_outputs.outputs.ip }}
                 ansible_user: ubuntu
                 ansible_ssh_private_key_file: ~/.ssh/id_rsa
                 ansible_python_interpreter: /usr/bin/python3
@@ -331,4 +348,4 @@ jobs:
 
       - name: Test Monitoring Stack
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ needs.deploy-infra.outputs.ip }} "/snap/bin/microk8s kubectl get pods -n monitoring -l app=prometheus | grep prometheus"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ steps.tf_outputs.outputs.ip }} "/snap/bin/microk8s kubectl get pods -n monitoring -l app=prometheus | grep prometheus"
