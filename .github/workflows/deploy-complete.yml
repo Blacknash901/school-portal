@@ -29,7 +29,7 @@ env:
 
 jobs:
   # ============================================================================
-  # JOB 1: PREPARE & DEPLOY INFRASTRUCTURE
+  # JOB 1: PREPARE & DEPLOY INFRASTRUCTURE (Terraform + Ansible Setup)
   # ============================================================================
   deploy-infra:
     name: 1. Deploy Infrastructure
@@ -61,7 +61,7 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      # --- Terraform ---
+      # --- Terraform Apply ---
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -69,13 +69,32 @@ jobs:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
           terraform_wrapper: false
 
+      - name: Terraform Init
+        working-directory: ./infrastructure/terraform
+        run: terraform init -input=false
+
+      - name: Terraform Validate
+        working-directory: ./infrastructure/terraform
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ./infrastructure/terraform
+        run: terraform plan -out=tfplan -input=false
+
+      - name: Terraform Apply
+        if: ${{ github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'infra-only' }}
+        working-directory: ./infrastructure/terraform
+        run: terraform apply -auto-approve -input=false tfplan
+
       - name: Fetch Terraform Outputs
         id: tf_outputs
         env:
           TF_IN_AUTOMATION: true
         run: |
           cd infrastructure/terraform
-          terraform init -input=false
+          # If we didn't apply (e.g. portal-only deploy), we still need outputs
+          if [ ! -f tfplan ]; then terraform init -input=false; fi
+          
           IP=$(terraform output -raw ec2_instance_1_public_ip)
           terraform output -raw private_key_pem > ../../private_key.pem
           chmod 600 ../../private_key.pem
@@ -123,7 +142,7 @@ jobs:
                 ansible_become_flags: "-n"
           EOF
 
-      - name: Deploy Infrastructure
+      - name: Setup Infrastructure (Ansible)
         if: ${{ github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'infra-only' }}
         working-directory: ./deployment/ansible
         run: ansible-playbook -i inventory-github.yml setup-infrastructure.yml
