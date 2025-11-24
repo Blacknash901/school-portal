@@ -202,10 +202,18 @@
         classic: yes
         channel: "1.28/stable"
 
+    - name: Ensure MicroK8s is running
+      command: microk8s start
+      changed_when: false
+      failed_when: false
+
     - name: Wait for MicroK8s to be ready
       command: microk8s status --wait-ready
       changed_when: false
-      timeout: 300
+      retries: 10
+      delay: 10
+      register: microk8s_ready
+      until: microk8s_ready.rc == 0
 
     - name: Enable MicroK8s addons
       command: "microk8s enable {{ item }}"
@@ -215,6 +223,9 @@
         - ingress
       register: addon_result
       changed_when: "'Enabling' in addon_result.stdout"
+      retries: 5
+      delay: 10
+      until: addon_result.rc == 0
 
     - name: Add user to microk8s group
       user:
