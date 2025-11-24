@@ -73,10 +73,10 @@
       debug:
         msg: |
           ✅ Monitor App Deployed!
-          
+
           URL: http://{{ ansible_host }}:30001
           API: http://{{ ansible_host }}:30002
-          
+
           Namespace: {{ monitoring_namespace }}
           Version: {{ app_version }}
 
