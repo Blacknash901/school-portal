@@ -38,6 +38,7 @@
           - python3-pip
           - python3-docker
           - rsync
+          - snapd
         state: present
 
     # ============================================================
@@ -128,7 +129,7 @@
     - name: Check if MicroK8s is installed
       command: snap list microk8s
       register: microk8s_installed
-      ignore_errors: yes
+      failed_when: false
       changed_when: false
 
     - name: Stop MicroK8s if installed (to release file handles)
@@ -162,8 +163,9 @@
     # Backup Tools
     # ============================================================
     - name: Install AWS CLI
-      apt:
-        name: awscli
+      snap:
+        name: aws-cli
+        classic: yes
         state: present
 
     - name: Create backup script
@@ -194,11 +196,6 @@
     # ============================================================
     # MicroK8s
     # ============================================================
-    - name: Install snapd
-      apt:
-        name: snapd
-        state: present
-
     - name: Install MicroK8s via snap
       snap:
         name: microk8s
