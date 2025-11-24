@@ -64,6 +64,9 @@
     - name: Deploy Blackbox Exporter
       command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/blackbox-exporter.yaml
 
+    - name: Deploy Monitoring Ingress
+      command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/monitoring-ingress.yaml
+
     - name: Wait for Prometheus
       command: /snap/bin/microk8s kubectl wait --for=condition=ready pod -l app=prometheus -n {{ monitoring_namespace }} --timeout=120s
       ignore_errors: yes
