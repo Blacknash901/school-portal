@@ -284,11 +284,25 @@ jobs:
           echo "📦 Version: ${{ steps.version.outputs.version }}"
           echo "🌐 URL: ${{ secrets.REACT_APP_REDIRECT_URI }}"
 
-      - name: Test Portal App (Curl)
+      - name: Verify Deployment
         run: |
-          # Wait a bit for ingress
+          DOMAIN="${{ steps.production_domain.outputs.domain }}"
+
+          echo "📡 Pinging $DOMAIN..."
+          ping -c 4 $DOMAIN || echo "⚠️ Ping failed"
+
+          echo "🌐 Checking application response..."
           sleep 30
-          curl -k -v https://${{ steps.tf_outputs.outputs.ip }}:3443 || curl -v http://${{ steps.tf_outputs.outputs.ip }}:3000
+
+          # Check if curl -k returns something
+          RESPONSE=$(curl -k --max-time 30 https://$DOMAIN)
+          if [ -n "$RESPONSE" ]; then
+             echo "✅ Application returned data:"
+             echo "$RESPONSE" | head -n 20
+          else
+             echo "❌ No response from application"
+             exit 1
+          fi
 
   # ============================================================================
   # JOB 3: DEPLOY MONITOR APP
