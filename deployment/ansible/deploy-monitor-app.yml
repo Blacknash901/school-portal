@@ -64,6 +64,22 @@
     - name: Deploy Monitor App
       command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/monitor-app-deployment.yaml
 
+    - name: Wait for pods to be ready
+      command: /snap/bin/microk8s kubectl wait --for=condition=ready pod -l app={{ app_name }} -n {{ monitoring_namespace }} --timeout=120s
+      changed_when: false
+      failed_when: false
+
+    - name: Display deployment summary
+      debug:
+        msg: |
+          ✅ Monitor App Deployed!
+          
+          URL: http://{{ ansible_host }}:30001
+          API: http://{{ ansible_host }}:30002
+          
+          Namespace: {{ monitoring_namespace }}
+          Version: {{ app_version }}
+
     - name: Wait for Monitor App
       command: /snap/bin/microk8s kubectl wait --for=condition=ready pod -l app={{ app_name }} -n {{ monitoring_namespace }} --timeout=120s
       ignore_errors: yes

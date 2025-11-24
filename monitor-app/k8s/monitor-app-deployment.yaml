@@ -82,16 +82,18 @@ metadata:
   labels:
     app: monitor-app
 spec:
-  type: LoadBalancer
+  type: NodePort
   ports:
     - port: 80
       targetPort: 3001
       protocol: TCP
       name: http
+      nodePort: 30001
     - port: 3001
       targetPort: 3001
       protocol: TCP
       name: api
+      nodePort: 30002
   selector:
     app: monitor-app
 ---
