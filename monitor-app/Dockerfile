@@ -1,5 +1,5 @@
 # Build stage for React frontend
-FROM node:18-alpine AS frontend-build
+FROM node:22-alpine AS frontend-build
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY eslint.config.js ./
 RUN npm run build
 
 # Build stage for Node.js backend
-FROM node:18-alpine AS backend-build
+FROM node:22-alpine AS backend-build
 
 WORKDIR /app
 
@@ -34,7 +34,7 @@ RUN npm ci --only=production
 COPY server ./server
 
 # Production stage
-FROM node:18-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
