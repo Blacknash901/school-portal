@@ -52,8 +52,8 @@
     - name: Update Image in Deployment Manifest
       replace:
         path: "{{ k8s_dir }}/monitor-app-deployment.yaml"
-        regexp: 'image: .*'
-        replace: 'image: {{ docker_registry }}:{{ app_version }}'
+        regexp: "image: .*"
+        replace: "image: {{ docker_registry }}:{{ app_version }}"
 
     - name: Deploy Monitor App
       command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/monitor-app-deployment.yaml

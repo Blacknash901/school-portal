@@ -160,7 +160,7 @@ jobs:
         working-directory: ./deployment/ansible
         run: |
           TYPE="${{ github.event.inputs.deploy_type }}"
-          
+
           case $TYPE in
             "all")
               ansible-playbook -i inventory-github.yml deploy-complete.yml
