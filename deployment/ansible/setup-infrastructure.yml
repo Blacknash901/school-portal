@@ -80,7 +80,22 @@
     # ============================================================
     # Persistent Storage Setup (EBS)
     # ============================================================
-    - name: Detect EBS volume (NVMe or standard)
+    - name: Detect EBS volume by ID (Terraform)
+      shell: |
+        # Remove 'vol-' prefix to get serial for NVMe (e.g. vol-123 -> vol123)
+        VOL_ID_CLEAN=$(echo "{{ ebs_volume_id }}" | sed 's/-//')
+        # Find device with that serial
+        lsblk -d -o NAME,SERIAL | grep "$VOL_ID_CLEAN" | awk '{print "/dev/"$1}'
+      register: ebs_device_from_id
+      when: ebs_volume_id is defined
+      changed_when: false
+
+    - name: Set EBS device path (from ID)
+      set_fact:
+        ebs_device: "{{ ebs_device_from_id.stdout | trim }}"
+      when: ebs_volume_id is defined and ebs_device_from_id.stdout != ""
+
+    - name: Detect EBS volume (Fallback/Manual)
       shell: |
         # Check for the specific device name first
         if [ -b /dev/sdf ]; then
@@ -92,12 +107,14 @@
           # Find by size (64G)
           lsblk -dn -o NAME,SIZE | grep '64G' | awk '{print "/dev/"$1}' | head -n1
         fi
-      register: ebs_device_output
+      register: ebs_device_fallback
+      when: ebs_device is not defined or ebs_device == ""
       changed_when: false
 
-    - name: Set EBS device path
+    - name: Set EBS device path (Fallback)
       set_fact:
-        ebs_device: "{{ ebs_device_output.stdout | trim }}"
+        ebs_device: "{{ ebs_device_fallback.stdout | trim }}"
+      when: (ebs_device is not defined or ebs_device == "") and ebs_device_fallback.stdout != ""
 
     - name: Fail if EBS device not found
       fail:
