@@ -1,0 +1,64 @@
+name: Build and Push Monitor App
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Monitor app version (leave empty for latest)"
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - "monitor-app/**"
+      - ".github/workflows/build-monitor-app.yml"
+
+env:
+  DOCKER_REGISTRY: blacknash/monitor
+
+jobs:
+  build-and-push:
+    name: Build and Push Monitor App
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="latest"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Building version: $VERSION"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./monitor-app
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}:${{ steps.version.outputs.version }}
+            ${{ env.DOCKER_REGISTRY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build summary
+        run: |
+          echo "✅ Monitor app built and pushed successfully!"
+          echo "📦 Version: ${{ steps.version.outputs.version }}"
+          echo "🐳 Image: ${{ env.DOCKER_REGISTRY }}:${{ steps.version.outputs.version }}"
+          echo "🏗️ Platforms: linux/amd64, linux/arm64"
