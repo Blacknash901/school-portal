@@ -1,424 +1,189 @@
-# Deployment Documentation
+# 🚀 School Portal Deployment Guide (2025 Refresh)
 
-This directory contains all deployment-related configuration for the School Portal application.
+[![Docker Build](https://github.com/Blacknash901/school-portal/actions/workflows/docker-build.yml/badge.svg)](https://github.com/Blacknash901/school-portal/actions/workflows/docker-build.yml)
+[![Deploy (Hosted Runner)](https://github.com/Blacknash901/school-portal/actions/workflows/deploy.yml/badge.svg)](https://github.com/Blacknash901/school-portal/actions/workflows/deploy.yml)
+[![Deploy (Self-Hosted)](https://github.com/Blacknash901/school-portal/actions/workflows/deploy-self-hosted.yml/badge.svg)](https://github.com/Blacknash901/school-portal/actions/workflows/deploy-self-hosted.yml)
+
+Single reference for building, testing, and deploying the School Portal platform after the repository re-organization.
+
+## 📦 Repository Layout (Top-Level)
+
+```
+school-portal/
+├── portal-app/                # Main user-facing portal (React + Node server)
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── public/
+│   ├── src/
+│   └── server*.js
+├── React-Service-Monitor/     # Monitoring UI (lives beside the portal)
+│   └── monitor-app/
+├── deployment/
+│   ├── ansible/               # Playbooks for infra + app
+│   └── docs, guides, scripts
+├── infrastructure/
+│   └── terraform/             # AWS + networking + IAM
+└── docs/                      # Additional how-tos
+```
+
+> **Reminder:** All commands in this guide assume you are at the repo root unless otherwise noted.
 
 ---
 
-## 📁 Directory Structure
+## 🔑 Required GitHub Secrets
 
-```
-deployment/
-├── ansible/                       # Ansible playbooks (recommended)
-│   ├── deploy-all.yml             # Full deployment (fresh instances)
-│   ├── deploy-app.yml             # App updates only (fast!)
-│   ├── deploy-monitoring.yml      # Optional monitoring
-│   ├── setup-infrastructure.yml   # Infrastructure setup
-│   ├── inventory-production.yml   # Server configuration
-│   └── PLAYBOOK-GUIDE.md          # Complete playbook guide
-│
-├── prometheus-deployment.yaml     # Prometheus configuration
-├── grafana-deployment.yaml        # Grafana with pre-configured dashboards
-├── monitoring.yaml                # HPA, PDB, alert rules
-├── iam-policy.json                # AWS IAM policy for logging
-├── iam-trust-policy.json          # AWS IAM trust policy
-├── Dockerfile                     # Docker build configuration
-│
-├── DEPLOYMENT.md                  # Comprehensive deployment guide
-├── QUICK-START-PRODUCTION.md      # Quick start for production
-├── HTTPS-WITH-IP.md               # HTTPS setup with IP addresses
-├── MONITORING-GUIDE.md            # Monitoring setup and usage
-└── prometheus-queries.md          # Example Prometheus queries
-```
+| Secret                                                                                                            | Used by            | Purpose                                   |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------ | ----------------------------------------- |
+| `DOCKER_USERNAME`, `DOCKER_PASSWORD`                                                                              | `docker-build.yml` | Pushes portal image to Docker Hub.        |
+| `REACT_APP_MSAL_CLIENT_ID`, `REACT_APP_MSAL_TENANT_ID`                                                            | build + deploy     | Front-end MSAL auth.                      |
+| `REACT_APP_AZURE_CLIENT_ID`, `REACT_APP_AZURE_TENANT_ID`                                                          | build + deploy     | Backend Azure AD usage.                   |
+| `REACT_APP_REDIRECT_URI`                                                                                          | build + deploy     | Prod redirect used in MSAL config.        |
+| `REACT_APP_S3_BUCKET_NAME`, `REACT_APP_S3_REGION`, `REACT_APP_S3_ACCESS_KEY_ID`, `REACT_APP_S3_SECRET_ACCESS_KEY` | build + deploy     | Browser logging/upload config.            |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`                                                        | deploy workflow    | Server-side S3 uploads + CLI tools.       |
+| `S3_BUCKET_NAME`                                                                                                  | deploy workflow    | Backup bucket for scripts (server-side).  |
+| `REACT_APP_SENTRY_DSN`, `REACT_APP_SENTRY_ENVIRONMENT`, `REACT_APP_ENABLE_SENTRY`, `SENTRY_DSN`                   | build + deploy     | Frontend + backend telemetry.             |
+| `REACT_APP_WORDPRESS_FEED_URL`                                                                                    | build + deploy     | News feed source.                         |
+| `REACT_APP_GOOGLE_CLIENT_ID`                                                                                      | build + deploy     | Google auth integrations.                 |
+| `TF_API_TOKEN`                                                                                                    | deploy workflow    | Terraform Cloud/CLI auth.                 |
+| `PRODUCTION_DOMAIN` (optional)                                                                                    | deploy workflow    | Overrides default `portal.cecre.net`.     |
+| `USE_IP` (optional)                                                                                               | deploy workflow    | Force ingress to use IP ("true"/"false"). |
+| `USE_HTTPS` (optional)                                                                                            | deploy workflow    | Toggle HTTPS for IP deploys.              |
+| `LETSENCRYPT_EMAIL`                                                                                               | deploy workflow    | Passed into Ansible for cert-manager.     |
+| `K8S_NAMESPACE` (optional)                                                                                        | deploy workflow    | Target namespace (defaults to `default`). |
+
+> Add all secrets under **Settings → Secrets and variables → Actions** in your GitHub repository.
 
 ---
 
-## 🚀 Quick Start
-
-### Fresh Instance Deployment
+## 💻 Local Development (Portal)
 
 ```bash
-# 1. Build and push Docker image
-cd /path/to/school-portal
-./build-production.sh 1.0.11 ip
-
-# 2. Create ARM EC2 instance
-#    - Type: t4g.medium
-#    - AMI: Ubuntu 22.04 ARM64
-#    - Storage: 20GB
-#    - Security Group: 22, 80, 443, 30443, 30090, 30300
-
-# 3. Update inventory
-cd deployment/ansible
-vim inventory-production.yml
-# Update: ansible_host and production_ip
-
-# 4. Deploy everything
-ansible-playbook -i inventory-production.yml deploy-all.yml
-
-# 5. Update Azure AD redirect URI
-#    https://YOUR_IP:30443
+cd portal-app
+npm install
+cp .env.example .env   # add Azure + S3 + Sentry values
+npm run server:https   # serves https://localhost:3443
 ```
 
-**Time:** ~15 minutes for full deployment
+Tips:
+
+- Update `.env` inside `portal-app/` (CI generates one automatically during deploys).
+- Certificates for local HTTPS live in `portal-app/certs/`.
+- For mobile testing, run `ipconfig getifaddr en0` and visit `https://<IP>:3443` (accept warning).
 
 ---
 
-## ⚡ Daily Development (Code Updates)
+## 🔁 CI/CD Overview
+
+### 1. Docker Build Pipeline (`.github/workflows/docker-build.yml`)
+
+- Triggered on PRs/pushes touching `portal-app/**`.
+- Jobs:
+  - **test**: `npm ci` + Jest from `portal-app/`.
+  - **build**: Logs in to Docker Hub, builds multi-arch image from `portal-app/`, pushes `blacknash/cecre:<version>` and `latest`.
+- Build arguments inject all React `REACT_APP_*` secrets, so missing secrets cause build failures.
+
+### 2. Deploy Pipelines
+
+- **`deploy.yml`** (hosted runner) & **`deploy-self-hosted.yml`** (runner on the EC2 box) share logic:
+  1. Extract version from `portal-app/package.json` (or manual input).
+  2. Generate `.env` from secrets (writing to repo root for Ansible).
+  3. Use Terraform outputs to grab EC2 IP + SSH key (stored temporarily as `private_key.pem`).
+  4. Generate dynamic Ansible inventory with runtime values and flags (`use_ip`, `use_https`, domain, etc.).
+  5. Decide what to run (`deploy-all.yml`, `deploy-app.yml`, `deploy-monitoring.yml`) depending on MicroK8s availability and requested `deploy_type`.
+
+> Keep Terraform state in sync before running `deploy.yml` locally (`terraform init && terraform plan/apply` inside `infrastructure/terraform`).
+
+---
+
+## 🧠 How Deployments Actually Work
+
+1. **Terraform (infrastructure/terraform)**
+
+   - Creates VPC, subnets, the EC2 host, IAM role, S3 bucket, IAM policies, Elastic IP, etc.
+   - Provides outputs consumed by workflows (`ec2_instance_1_public_ip`, EBS info, private key).
+
+2. **Ansible (deployment/ansible)**
+
+   - `setup-infrastructure.yml`: configures Docker, MicroK8s, mounts the EBS volume, installs AWS CLI + Snap packages, configures firewall.
+   - `deploy-app.yml`: pushes Docker image into MicroK8s, applies manifests, wires TLS/ingress, etc.
+   - `deploy-monitoring.yml`: optional Prometheus/Grafana stack (uses templates under `deployment/`).
+
+3. **Portal Runtime (portal-app/)**
+
+   - Builds React static assets + Node API.
+   - Pods expose HTTP (3000) internally and TLS via MicroK8s ingress.
+   - `/metrics` is internal-only (ingress denies external access); Prometheus hits the service cluster-internally.
+
+4. **Monitor App (React-Service-Monitor/monitor-app)**
+   - Separate React app for dashboards. Follow its README for build/deploy (not automated yet).
+
+---
+
+## 📜 Manual Deployment Recipes
+
+### Run the Portal Locally via Docker
 
 ```bash
-# 1. Build new version
-./build-production.sh 1.0.12 ip
-
-# 2. Update inventory version
-vim deployment/ansible/inventory-production.yml
-# Change: app_version: "1.0.12"
-
-# 3. Deploy app only
-cd deployment/ansible
-ansible-playbook -i inventory-production.yml deploy-app.yml
-```
-
-**Time:** ~3 minutes (5x faster than full deployment!)
-
----
-
-## 📖 Documentation
-
-### Essential Guides
-
-1. **[PLAYBOOK-GUIDE.md](./ansible/PLAYBOOK-GUIDE.md)** ⭐
-
-   - Complete guide to all playbooks
-   - When to use each one
-   - Common workflows
-   - Troubleshooting
-
-2. **[DEPLOY-ARM-GUIDE.md](../DEPLOY-ARM-GUIDE.md)** 🚀
-
-   - ARM/Graviton deployment guide
-   - Why ARM is better for this project
-   - AWS instance setup
-   - Complete walkthrough
-
-3. **[DEPLOYMENT.md](./DEPLOYMENT.md)**
-
-   - Comprehensive deployment reference
-   - All scenarios covered
-   - Architecture decisions
-   - Advanced configurations
-
-4. **[MONITORING-GUIDE.md](./MONITORING-GUIDE.md)** 📊
-
-   - Prometheus + Grafana setup
-   - Dashboard usage
-   - Alert configuration
-   - Troubleshooting metrics
-
-5. **[QUICK-START-PRODUCTION.md](./QUICK-START-PRODUCTION.md)**
-   - Quick reference for production deployment
-   - Step-by-step checklist
-   - Common issues and fixes
-
----
-
-## 🎯 Deployment Options
-
-### Option 1: Modular Ansible (Recommended) ⭐
-
-**Best for:** Production deployments, team environments, repeatable deployments
-
-**Playbooks:**
-
-- `deploy-all.yml` - Fresh instances (15 min)
-- `deploy-app.yml` - App updates (3 min)
-- `deploy-monitoring.yml` - Add monitoring (5 min)
-- `setup-infrastructure.yml` - Infrastructure only (8 min)
-
-**Pros:**
-
-- ✅ Automated and repeatable
-- ✅ Fast updates (3 min for app changes)
-- ✅ Modular (run only what you need)
-- ✅ Production-tested
-
-**Guide:** [ansible/PLAYBOOK-GUIDE.md](./ansible/PLAYBOOK-GUIDE.md)
-
----
-
-### Option 2: Docker
-
-**Best for:** Local testing, development, simple deployments
-
-```bash
-# Build
-./build-production.sh 1.0.11 ip
-
-# Deploy
+cd portal-app
+docker build -t school-portal:local .
 docker run -d \
+  -p 3000:3000 \
   -p 3443:3443 \
   --env-file .env \
-  -v $(pwd)/certs:/app/certs:ro \
-  blacknash/cecre:1.0.11
+  --name school-portal \
+  school-portal:local
 ```
 
-**Pros:**
-
-- ✅ Simple and fast
-- ✅ Good for testing
-- ✅ No infrastructure setup
-
-**Cons:**
-
-- ❌ No auto-scaling
-- ❌ No monitoring
-- ❌ Manual updates
-
----
-
-### Option 3: Manual Kubernetes
-
-**Best for:** Custom Kubernetes setups, learning, advanced configurations
+### Trigger full Ansible deployment yourself
 
 ```bash
-# Apply manifests manually
-kubectl apply -f deployment/prometheus-deployment.yaml
-kubectl apply -f deployment/grafana-deployment.yaml
-kubectl apply -f deployment/monitoring.yaml
-
-# Create secrets manually
-kubectl create secret generic school-portal-secrets \
-  --from-env-file=.env
-
-# Apply custom deployment
-kubectl apply -f your-custom-deployment.yaml
+cd deployment/ansible
+ansible-playbook -i inventory-production-ssh.yml deploy-all.yml
 ```
 
-**Pros:**
-
-- ✅ Full control
-- ✅ Customizable
-
-**Cons:**
-
-- ❌ More manual work
-- ❌ Harder to maintain
-
----
-
-## 🏗️ Architecture
-
-### Deployment Stack
-
-```
-┌─────────────────────────────────────────────────┐
-│          AWS EC2 (t4g.medium - ARM64)           │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ┌─────────────────────────────────────────┐   │
-│  │       MicroK8s Kubernetes Cluster       │   │
-│  ├─────────────────────────────────────────┤   │
-│  │                                         │   │
-│  │  Namespace: default                     │   │
-│  │  ├─ school-portal (2-5 replicas)       │   │
-│  │  │   └─ NodePort 30443 (HTTPS)         │   │
-│  │                                         │   │
-│  │  Namespace: monitoring                  │   │
-│  │  ├─ Prometheus                          │   │
-│  │  │   └─ NodePort 30090                  │   │
-│  │  └─ Grafana                             │   │
-│  │      └─ NodePort 30300                  │   │
-│  │                                         │   │
-│  └─────────────────────────────────────────┘   │
-│                                                 │
-└─────────────────────────────────────────────────┘
-```
-
-### Component Versions
-
-- **MicroK8s:** 1.28/stable
-- **Node.js:** 18-alpine
-- **Prometheus:** Latest
-- **Grafana:** Latest (with pre-configured dashboards)
-
----
-
-## 📊 Monitoring
-
-After deploying with monitoring, you'll have access to:
-
-### Grafana Dashboard
-
-- **URL:** `http://your-ip:30300`
-- **Login:** `admin` / `admin`
-- **Dashboard:** "School Portal Monitoring" (pre-configured)
-- **Metrics:** HTTP requests, errors, CPU, memory, rate limits
-
-### Prometheus
-
-- **URL:** `http://your-ip:30090`
-- **Features:** Metrics explorer, custom queries, alert rules
-
-### Auto-Scaling
-
-- **Min replicas:** 2
-- **Max replicas:** 5
-- **Triggers:** CPU > 70%, Memory > 80%
-
-### Alerts
-
-- Pod crash looping
-- High memory usage (> 80%)
-- High CPU usage (> 80%)
-- High rate limit hits
-- Deployment has no replicas
-
-**Full Guide:** [MONITORING-GUIDE.md](./MONITORING-GUIDE.md)
-
----
-
-## 🔒 Security
-
-### Firewall Rules (UFW)
-
-```
-Port 22     - SSH
-Port 80     - HTTP (redirect to HTTPS)
-Port 443    - HTTPS
-Port 30443  - Kubernetes NodePort (App HTTPS)
-Port 30090  - Kubernetes NodePort (Prometheus)
-Port 30300  - Kubernetes NodePort (Grafana)
-```
-
-### AWS Security Group
-
-Same ports as above, allow from `0.0.0.0/0`
-
-### SSL/TLS
-
-- Self-signed certificates for IP-based deployments
-- Let's Encrypt for domain-based deployments
-
----
-
-## 🛠️ Troubleshooting
-
-### Common Issues
-
-#### Pods not starting
+### Redeploy just the app
 
 ```bash
-# Check pod status
-kubectl get pods
-
-# View logs
-kubectl logs -l app=school-portal --tail=50
-
-# Describe pod for events
-kubectl describe pod <pod-name>
+cd deployment/ansible
+ansible-playbook -i inventory-production-ssh.yml deploy-app.yml
 ```
 
-#### Can't access app
+### Interacting with MicroK8s
 
 ```bash
-# Check service
-kubectl get svc school-portal-service
-
-# Check firewall
-sudo ufw status
-
-# Verify AWS Security Group allows port 30443
+ssh ubuntu@<EC2_IP>
+microk8s kubectl get pods -A
+microk8s kubectl logs -n default deployment/school-portal
 ```
 
-#### Monitoring not working
+---
 
-```bash
-# Check monitoring namespace
-kubectl get pods -n monitoring
+## 🧪 Verification & Troubleshooting
 
-# Check metrics-server
-kubectl get pods -n kube-system | grep metrics-server
-
-# Redeploy monitoring
-ansible-playbook -i inventory-production.yml deploy-monitoring.yml
-```
-
-**Complete Troubleshooting:** [ansible/PLAYBOOK-GUIDE.md#troubleshooting](./ansible/PLAYBOOK-GUIDE.md#troubleshooting)
+- **Health checks**: `curl https://portal.cecre.net/api/health` or `curl http://localhost:3000/api/health` (inside pod).
+- **Metrics**: From the EC2 host: `curl http://127.0.0.1:3000/metrics` or port-forward the deployment.
+- **Ingress debugging**: `microk8s kubectl describe ingress school-portal-ingress`.
+- **Storage**: `lsblk` on the host should show the 64 GB EBS volume mounted at `/var/snap/microk8s/common`.
+- **Secrets mismatch**: If GitHub workflows fail early, confirm every secret in the table above exists.
 
 ---
 
-## 📝 Configuration
+## ✅ Deployment Checklist
 
-### Inventory File (`ansible/inventory-production.yml`)
-
-Update these variables before deploying:
-
-```yaml
-all:
-  hosts:
-    production-server:
-      ansible_host: YOUR_IP # ⚠️ Update this!
-      ansible_user: ubuntu
-      ansible_ssh_private_key_file: /path/to/key.pem
-
-  vars:
-    app_name: school-portal
-    app_version: "1.0.11" # ⚠️ Update for each release
-    docker_registry: blacknash/cecre
-    production_ip: YOUR_IP # ⚠️ Update this!
-    use_ip: true # false when DNS is ready
-    use_https: true
-```
-
-### Environment Variables
-
-Configure `.env` in project root. See `env.example` for all options.
-
-**Key Variables:**
-
-- `REACT_APP_MSAL_CLIENT_ID` - Azure AD client ID
-- `REACT_APP_MSAL_TENANT_ID` - Azure AD tenant ID
-- `REACT_APP_REDIRECT_URI` - OAuth redirect URI (set by build script)
+1. Terraform state is applied and outputs accessible.
+2. GitHub secrets table is complete (double-check new ones after future features).
+3. DNS (`portal.cecre.net`) points to the current Elastic IP.
+4. `docker-build.yml` succeeded (image tagged with the desired version).
+5. `deploy.yml` (or the self-hosted variant) finished without errors.
+6. Portal loads over HTTPS, `/metrics` is blocked externally but readable internally.
+7. Monitoring stack (optional) is deployed if `deploy-monitoring.yml` ran.
 
 ---
 
-## 🎓 Best Practices
+**Need more?** See:
 
-### ✅ Do:
+- `deployment/ansible/README.md` for playbook internals.
+- `docs/guides/HTTPS-SETUP-GUIDE.md` for TLS specifics.
+- `docs/guides/AZURE-AD-MOBILE-ACCESS.md` for mobile login tips.
 
-- Use `deploy-app.yml` for code updates (faster)
-- Version your Docker images (1.0.11, 1.0.12, etc.)
-- Test locally before deploying to production
-- Keep inventory file updated with correct version
-- Back up `.env` file securely
-
-### ❌ Don't:
-
-- Don't use `deploy-all.yml` for updates (slow)
-- Don't skip versioning (using only `latest`)
-- Don't commit `.env` files to git
-- Don't forget to update Azure AD redirect URI
-- Don't deploy without pushing Docker image first
-
----
-
-## 📚 Additional Resources
-
-- [Main README](../README.md)
-- [Environment Variables Guide](../docs/guides/ENVIRONMENT-VARIABLES.md)
-- [HTTPS Setup Guide](../docs/guides/HTTPS-SETUP-GUIDE.md)
-- [Security Guide](../docs/guides/SECURITY-MONITORING-GUIDE.md)
-- [Testing Guide](../docs/guides/TESTING-GUIDE.md)
-
----
-
-## 🆘 Getting Help
-
-1. **Check the guides** - Most questions are answered in the documentation
-2. **Review playbook output** - Ansible shows detailed error messages
-3. **Check logs** - `kubectl logs` and `kubectl describe` are your friends
-4. **Read error messages** - They usually tell you exactly what's wrong
-
----
-
-**Last Updated:** October 2024  
-**Maintained by:** School Portal Team
+Happy shipping! 🚀
