@@ -1,0 +1,63 @@
+---
+# ============================================================================
+# Monitor App Deployment Playbook
+# ============================================================================
+#
+# PURPOSE:
+#   Deploy the Monitor App (React/Node) to MicroK8s.
+#
+# USAGE:
+#   ansible-playbook -i inventory-production.yml deploy-monitor-app.yml
+# ============================================================================
+
+- name: Deploy Monitor App
+  hosts: production-server
+  become: yes
+  gather_facts: yes
+
+  vars:
+    k8s_dir: "/opt/monitor-app/k8s"
+    monitoring_namespace: "monitoring"
+    app_name: "monitor-app"
+
+  tasks:
+    - name: Create monitoring directory
+      file:
+        path: "{{ k8s_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy Kubernetes manifests
+      copy:
+        src: "{{ playbook_dir }}/../../monitor-app/k8s/"
+        dest: "{{ k8s_dir }}/"
+        mode: "0644"
+
+    - name: Pull Docker image
+      community.docker.docker_image:
+        name: "{{ docker_registry }}:{{ app_version }}"
+        source: pull
+      register: pull_result
+      changed_when: "'Pulled' in (pull_result.actions | join(' '))"
+
+    - name: Import image into MicroK8s
+      shell: |
+        docker save {{ docker_registry }}:{{ app_version }} -o /tmp/{{ app_name }}-{{ app_version }}.tar
+        microk8s ctr images import /tmp/{{ app_name }}-{{ app_version }}.tar
+        rm /tmp/{{ app_name }}-{{ app_version }}.tar
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Update Image in Deployment Manifest
+      replace:
+        path: "{{ k8s_dir }}/monitor-app-deployment.yaml"
+        regexp: 'image: .*'
+        replace: 'image: {{ docker_registry }}:{{ app_version }}'
+
+    - name: Deploy Monitor App
+      command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/monitor-app-deployment.yaml
+
+    - name: Wait for Monitor App
+      command: /snap/bin/microk8s kubectl wait --for=condition=ready pod -l app={{ app_name }} -n {{ monitoring_namespace }} --timeout=120s
+      ignore_errors: yes

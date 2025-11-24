@@ -1,0 +1,68 @@
+---
+# ============================================================================
+# Monitoring Stack Deployment Playbook
+# ============================================================================
+#
+# PURPOSE:
+#   Deploy Prometheus, Grafana, and CloudWatch Exporter to MicroK8s.
+#
+# USAGE:
+#   ansible-playbook -i inventory-production.yml deploy-monitoring-stack.yml
+# ============================================================================
+
+- name: Deploy Monitoring Stack
+  hosts: production-server
+  become: yes
+  gather_facts: yes
+
+  vars:
+    k8s_dir: "/opt/monitor-app/k8s"
+    monitoring_namespace: "monitoring"
+
+  tasks:
+    - name: Create monitoring directory
+      file:
+        path: "{{ k8s_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy Kubernetes manifests
+      copy:
+        src: "{{ playbook_dir }}/../../monitor-app/k8s/"
+        dest: "{{ k8s_dir }}/"
+        mode: "0644"
+
+    - name: Create monitoring namespace
+      command: /snap/bin/microk8s kubectl create namespace {{ monitoring_namespace }}
+      register: create_ns
+      failed_when: false
+      changed_when: "'created' in create_ns.stdout"
+
+    - name: Apply Prometheus Configuration
+      command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/prometheus-config.yaml
+
+    - name: Deploy Prometheus
+      command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/prometheus-deployment.yaml
+
+    - name: Deploy Grafana
+      command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/grafana-deployment.yaml
+
+    - name: Deploy Grafana Dashboards
+      command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/grafana-dashboard.yaml
+
+    - name: Deploy CloudWatch Exporter
+      command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/cloudwatch-exporter.yaml
+
+    - name: Deploy Kube State Metrics
+      command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/kube-state-metrics.yaml
+
+    - name: Deploy Blackbox Exporter
+      command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/blackbox-exporter.yaml
+
+    - name: Wait for Prometheus
+      command: /snap/bin/microk8s kubectl wait --for=condition=ready pod -l app=prometheus -n {{ monitoring_namespace }} --timeout=120s
+      ignore_errors: yes
+
+    - name: Wait for Grafana
+      command: /snap/bin/microk8s kubectl wait --for=condition=ready pod -l app=grafana -n {{ monitoring_namespace }} --timeout=120s
+      ignore_errors: yes

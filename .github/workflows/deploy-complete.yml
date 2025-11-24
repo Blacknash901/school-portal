@@ -1,73 +1,68 @@
-name: Deploy to Production
+name: Deploy Complete Stack
 
 on:
   workflow_dispatch:
     inputs:
       deploy_type:
-        description: "Deployment type"
+        description: "Deployment Scope"
         required: true
-        default: "app"
+        default: "all"
         type: choice
         options:
-          - app
           - all
-          - monitoring
-      app_version:
-        description: "App version (leave empty to use package.json version)"
+          - infra-only
+          - portal-only
+          - monitor-stack-only
+          - monitor-app-only
+      portal_version:
+        description: "Portal App Version (leave empty for package.json)"
         required: false
         type: string
-#  push:
-#    branches: [main, master]
-#    paths-ignore:
-#      - "**.md"
-#      - "docs/**"
-#      - ".github/workflows/docker-build.yml"
+      monitor_version:
+        description: "Monitor App Version (leave empty for latest)"
+        required: false
+        type: string
 
 env:
-  DOCKER_REGISTRY: blacknash/cecre
+  DOCKER_REGISTRY_PORTAL: blacknash/cecre
+  DOCKER_REGISTRY_MONITOR: blacknash/monitor
 
 jobs:
   deploy:
-    name: Deploy to Production
+    name: Deploy Complete Stack
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Extract version from package.json
-        id: version
+      # --- Version Extraction ---
+      - name: Extract Portal Version
+        id: portal_ver
         run: |
-          VERSION="${{ github.event.inputs.app_version }}"
+          VERSION="${{ github.event.inputs.portal_version }}"
           if [ -z "$VERSION" ]; then
             VERSION=$(node -p "require('./portal-app/package.json').version")
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "App version: $VERSION"
 
-      - name: Set deployment type
-        id: deploy_type
+      - name: Extract Monitor Version
+        id: monitor_ver
         run: |
-          TYPE="${{ github.event.inputs.deploy_type }}"
-          if [ -z "$TYPE" ]; then
-            TYPE="app"
+          VERSION="${{ github.event.inputs.monitor_version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="latest"
           fi
-          echo "type=$TYPE" >> $GITHUB_OUTPUT
-          echo "Deployment type: $TYPE"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Generate .env file from GitHub secrets
+      # --- Secrets & Env ---
+      - name: Generate .env file
         run: |
           cat > .env <<EOF
-          # Generated from GitHub Secrets - DO NOT COMMIT
-          # Azure Active Directory
+          # Generated from GitHub Secrets
           REACT_APP_MSAL_CLIENT_ID=${{ secrets.REACT_APP_MSAL_CLIENT_ID }}
           REACT_APP_MSAL_TENANT_ID=${{ secrets.REACT_APP_MSAL_TENANT_ID }}
           REACT_APP_AZURE_CLIENT_ID=${{ secrets.REACT_APP_AZURE_CLIENT_ID }}
           REACT_APP_AZURE_TENANT_ID=${{ secrets.REACT_APP_AZURE_TENANT_ID }}
           REACT_APP_REDIRECT_URI=${{ secrets.REACT_APP_REDIRECT_URI }}
-
-          # AWS S3 Logging
           REACT_APP_S3_BUCKET_NAME=${{ secrets.REACT_APP_S3_BUCKET_NAME }}
           REACT_APP_S3_REGION=${{ secrets.REACT_APP_S3_REGION }}
           REACT_APP_S3_ACCESS_KEY_ID=${{ secrets.REACT_APP_S3_ACCESS_KEY_ID }}
@@ -76,26 +71,18 @@ jobs:
           AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION=${{ secrets.AWS_REGION }}
           S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-
-          # Sentry Error Tracking
           REACT_APP_SENTRY_DSN=${{ secrets.REACT_APP_SENTRY_DSN }}
           REACT_APP_SENTRY_ENVIRONMENT=${{ secrets.REACT_APP_SENTRY_ENVIRONMENT }}
           REACT_APP_ENABLE_SENTRY=${{ secrets.REACT_APP_ENABLE_SENTRY }}
           SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-
-          # WordPress RSS Feed
           REACT_APP_WORDPRESS_FEED_URL=${{ secrets.REACT_APP_WORDPRESS_FEED_URL }}
-
-          # Google OAuth
           REACT_APP_GOOGLE_CLIENT_ID=${{ secrets.REACT_APP_GOOGLE_CLIENT_ID }}
-
-          # Server Configuration
           NODE_ENV=production
           PORT=3000
           HTTPS_PORT=443
           EOF
-          echo "✅ .env file generated"
 
+      # --- Terraform ---
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -105,30 +92,25 @@ jobs:
 
       - name: Fetch Terraform Outputs
         id: tf_outputs
+        env:
+          TF_IN_AUTOMATION: true
         run: |
           cd infrastructure/terraform
-          terraform init
-
+          terraform init -input=false
           IP=$(terraform output -raw ec2_instance_1_public_ip)
           terraform output -raw private_key_pem > ../../private_key.pem
           chmod 600 ../../private_key.pem
-
           echo "ip=$IP" >> $GITHUB_OUTPUT
-          echo "✅ Fetched IP: $IP"
 
-      - name: Determine production domain
-        id: production_domain
-        env:
-          PRODUCTION_DOMAIN_SECRET: ${{ secrets.PRODUCTION_DOMAIN }}
+      - name: Determine Domain
+        id: domain
         run: |
-          DOMAIN="$PRODUCTION_DOMAIN_SECRET"
-          if [ -z "$DOMAIN" ]; then
-            DOMAIN="portal.cecre.net"
-          fi
+          DOMAIN="${{ secrets.PRODUCTION_DOMAIN }}"
+          [ -z "$DOMAIN" ] && DOMAIN="portal.cecre.net"
           echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
-          echo "✅ Using production domain: $DOMAIN"
 
-      - name: Generate dynamic inventory file
+      # --- Ansible Inventory ---
+      - name: Generate Inventory
         run: |
           mkdir -p deployment/ansible
           cat > deployment/ansible/inventory-github.yml <<EOF
@@ -142,86 +124,68 @@ jobs:
                 ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
                 ansible_become: true
                 ansible_become_method: sudo
-                ansible_become_password: ""
                 ansible_become_flags: "-n"
-
             vars:
+              # Portal App Vars
               app_name: school-portal
-              app_version: "${{ steps.version.outputs.version }}"
-              docker_registry: ${{ env.DOCKER_REGISTRY }}
+              app_version: "${{ steps.portal_ver.outputs.version }}"
+              docker_registry: ${{ env.DOCKER_REGISTRY_PORTAL }}
               production_ip: ${{ steps.tf_outputs.outputs.ip }}
-              production_domain: "${{ steps.production_domain.outputs.domain }}"
+              production_domain: "${{ steps.domain.outputs.domain }}"
               use_ip: "${{ secrets.USE_IP || 'false' }}"
               use_https: "${{ secrets.USE_HTTPS || 'true' }}"
               letsencrypt_email: ${{ secrets.LETSENCRYPT_EMAIL }}
               k8s_namespace: ${{ secrets.K8S_NAMESPACE || 'default' }}
+              
+              # Monitor App Vars
+              monitor_app_name: monitor-app
+              monitor_docker_registry: ${{ env.DOCKER_REGISTRY_MONITOR }}
+              monitor_app_version: "${{ steps.monitor_ver.outputs.version }}"
+              monitoring_namespace: monitoring
           EOF
-          echo "✅ Inventory file generated"
 
-      - name: Setup SSH key
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          # Key is already saved to private_key.pem in workspace root
           ssh-keyscan -H ${{ steps.tf_outputs.outputs.ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
-          echo "✅ SSH key configured"
-
-      - name: Check Infrastructure Status
-        id: check_infra
-        run: |
-          echo "🔍 Checking if MicroK8s is installed on ${{ steps.tf_outputs.outputs.ip }}..."
-          if ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@${{ steps.tf_outputs.outputs.ip }} "which microk8s"; then
-            echo "✅ Infrastructure is ready"
-            echo "ready=true" >> $GITHUB_OUTPUT
-          else
-            echo "⚠️ Infrastructure missing (MicroK8s not found)"
-            echo "ready=false" >> $GITHUB_OUTPUT
-          fi
 
       - name: Install Ansible
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-pip
           pip3 install ansible
-          ansible --version
-          echo "✅ Ansible installed"
 
-      - name: Deploy with Ansible
+      # --- Deployment Logic ---
+      - name: Run Deployment
+        working-directory: ./deployment/ansible
         run: |
-          cd deployment/ansible
-
-          DEPLOY_TYPE="${{ steps.deploy_type.outputs.type }}"
-          INFRA_READY="${{ steps.check_infra.outputs.ready }}"
-
-          # Smart Deployment Logic
-          if [ "$INFRA_READY" == "false" ]; then
-            echo "⚠️ Infrastructure is missing. Forcing full deployment (Infrastructure + App)."
-            DEPLOY_TYPE="all"
-          fi
-
-          case $DEPLOY_TYPE in
+          TYPE="${{ github.event.inputs.deploy_type }}"
+          
+          case $TYPE in
             "all")
-              echo "🚀 Deploying everything (infrastructure + app)..."
-              ansible-playbook -i inventory-github.yml deploy-all.yml
+              ansible-playbook -i inventory-github.yml deploy-complete.yml
               ;;
-            "monitoring")
-              echo "📊 Deploying monitoring only..."
-              ansible-playbook -i inventory-github.yml deploy-monitoring.yml
+            "infra-only")
+              ansible-playbook -i inventory-github.yml setup-infrastructure.yml
               ;;
-            "app"|*)
-              echo "📦 Deploying application only..."
+            "portal-only")
               ansible-playbook -i inventory-github.yml deploy-app.yml
+              ;;
+            "monitor-stack-only")
+              ansible-playbook -i inventory-github.yml deploy-monitoring-stack.yml
+              ;;
+            "monitor-app-only")
+              # Override vars for monitor app specific deployment if needed, 
+              # but inventory vars should cover it.
+              # Note: deploy-monitor-app.yml expects 'docker_registry' and 'app_version' 
+              # which are generic names. We need to pass them explicitly or update playbook.
+              # Let's pass them as extra vars to be safe.
+              ansible-playbook -i inventory-github.yml deploy-monitor-app.yml \
+                -e "docker_registry=${{ env.DOCKER_REGISTRY_MONITOR }}" \
+                -e "app_version=${{ steps.monitor_ver.outputs.version }}"
               ;;
           esac
 
       - name: Cleanup
         if: always()
-        run: |
-          rm -f private_key.pem
-          echo "✅ Cleanup completed"
-
-      - name: Deployment summary
-        if: success()
-        run: |
-          echo "✅ Deployment completed successfully!"
-          echo "📦 Version: ${{ steps.version.outputs.version }}"
-          echo "🌐 URL: ${{ secrets.REACT_APP_REDIRECT_URI }}"
+        run: rm -f private_key.pem

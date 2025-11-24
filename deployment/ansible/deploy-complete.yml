@@ -1,0 +1,23 @@
+---
+# ============================================================================
+# Complete Deployment Playbook
+# ============================================================================
+#
+# PURPOSE:
+#   Deploy EVERYTHING: Infrastructure, Portal App, Monitoring Stack, and Monitor App.
+#
+# USAGE:
+#   ansible-playbook -i inventory-production.yml deploy-complete.yml
+# ============================================================================
+
+- name: "Step 1/4: Setup Infrastructure"
+  import_playbook: setup-infrastructure.yml
+
+- name: "Step 2/4: Deploy Portal Application"
+  import_playbook: deploy-app.yml
+
+- name: "Step 3/4: Deploy Monitoring Stack"
+  import_playbook: deploy-monitoring-stack.yml
+
+- name: "Step 4/4: Deploy Monitor App"
+  import_playbook: deploy-monitor-app.yml
