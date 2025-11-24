@@ -60,8 +60,8 @@ ENV PORT=3001
 # Switch to non-root user
 USER nodejs
 
-# Expose ports
-EXPOSE 3001 80
+# Expose API/UI port
+EXPOSE 3001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

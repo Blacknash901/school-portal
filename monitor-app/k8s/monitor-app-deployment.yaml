@@ -32,11 +32,9 @@ spec:
       serviceAccountName: monitor-app
       containers:
         - name: monitor-app
-          image: cecre/monitor-app:latest # Replace with your image
+          image: blacknash/monitor:latest
           ports:
             - containerPort: 3001
-              name: api
-            - containerPort: 80
               name: http
           env:
             - name: PORT
@@ -87,7 +85,7 @@ spec:
   type: LoadBalancer
   ports:
     - port: 80
-      targetPort: 80
+      targetPort: 3001
       protocol: TCP
       name: http
     - port: 3001

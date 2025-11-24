@@ -8,17 +8,16 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKER_REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/monitor-app
+  DOCKER_IMAGE: blacknash/monitor
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: "18"
           cache: "npm"
@@ -40,31 +39,38 @@ jobs:
   build-and-push:
     needs: test
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    env:
+      IMAGE_TAG: sha-${{ github.sha }}
+    outputs:
+      image_tag: ${{ steps.image_tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
         with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Capture image tag
+        id: image_tag
+        run: echo "tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.DOCKER_IMAGE }}
           tags: |
-            type=sha,format=long
+            type=raw,value=${{ env.IMAGE_TAG }}
             type=ref,event=branch
-            latest
+            type=raw,value=latest
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: ./monitor-app
           push: true
@@ -74,36 +80,83 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    env:
+      IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Install Kustomize
-        run: |
-          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-          sudo mv kustomize /usr/local/bin/
-
-      - name: Update Image Tag in Kustomize
-        working-directory: ./monitor-app/k8s
-        run: |
-          kustomize edit set image cecre/monitor-app:latest=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:sha-$(git rev-parse --short HEAD)
-
-      - name: Setup Kubectl
-        uses: azure/setup-kubectl@v3
-
-      - name: Deploy to MicroK8s
-        uses: azure/k8s-set-context@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBECONFIG }}
+          terraform_version: 1.9.0
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          terraform_wrapper: false
 
-      - name: Apply Manifests
-        working-directory: ./monitor-app/k8s
+      - name: Fetch Terraform Outputs
+        id: tf_outputs
+        env:
+          TF_IN_AUTOMATION: true
         run: |
-          kustomize build . | kubectl apply -f -
+          cd infrastructure/terraform
+          terraform init -input=false
 
-      - name: Verify Deployment
+          IP=$(terraform output -raw ec2_instance_1_public_ip)
+          terraform output -raw private_key_pem > ../../private_key.pem
+          chmod 600 ../../private_key.pem
+
+          echo "ip=$IP" >> $GITHUB_OUTPUT
+
+      - name: Generate dynamic inventory file
         run: |
-          kubectl rollout status deployment/monitor-app -n monitoring
-          kubectl rollout status deployment/prometheus -n monitoring
-          kubectl rollout status deployment/grafana -n monitoring
+          mkdir -p deployment/ansible
+          cat > deployment/ansible/inventory-github.yml <<EOF
+          all:
+            hosts:
+              production-server:
+                ansible_host: ${{ steps.tf_outputs.outputs.ip }}
+                ansible_user: ubuntu
+                ansible_ssh_private_key_file: ${{ github.workspace }}/private_key.pem
+                ansible_python_interpreter: /usr/bin/python3
+                ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+                ansible_become: true
+                ansible_become_method: sudo
+                ansible_become_flags: "-n"
+
+            vars:
+              app_name: monitor-app
+              docker_registry: ${{ env.DOCKER_IMAGE }}
+              app_version: "${{ env.IMAGE_TAG }}"
+              monitoring_namespace: monitoring
+              k8s_namespace: monitoring
+              production_ip: ${{ steps.tf_outputs.outputs.ip }}
+          EOF
+          echo "✅ Inventory file generated"
+
+      - name: Setup SSH known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ steps.tf_outputs.outputs.ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install ansible
+          ansible --version
+
+      - name: Deploy monitoring via Ansible
+        working-directory: ./deployment/ansible
+        run: |
+          ansible-playbook -i inventory-github.yml deploy-monitoring.yml
+
+      - name: Cleanup
+        if: always()
+        run: rm -f private_key.pem
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "✅ Monitoring stack deployed via Ansible"
+          echo "📦 Image: ${{ env.DOCKER_IMAGE }}:${{ env.IMAGE_TAG }}"
+          echo "🌐 Host: ${{ steps.tf_outputs.outputs.ip }}"

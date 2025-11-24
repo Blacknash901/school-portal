@@ -1,9 +1,20 @@
 // URLs to monitor
 export const MONITOR_URLS = ["https://portal.cecre.net"];
 
-// API endpoints for the backend
-export const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3001";
+const normalizeUrl = (value) =>
+  typeof value === "string" ? value.trim().replace(/\/$/, "") : value;
+
+const resolvedEnvApiUrl = normalizeUrl(import.meta.env.VITE_API_URL);
+const runtimeOrigin =
+  typeof window !== "undefined" ? window.location.origin : undefined;
+const resolvedDefaultApiUrl = import.meta.env.DEV
+  ? "http://localhost:3001"
+  : runtimeOrigin || "http://localhost:3001";
+
+// API endpoints for the backend (default to same origin in production)
+export const API_BASE_URL = normalizeUrl(
+  resolvedEnvApiUrl || resolvedDefaultApiUrl
+);
 
 export const API_ENDPOINTS = {
   // Prometheus endpoints

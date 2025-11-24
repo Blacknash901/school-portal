@@ -1,11 +1,18 @@
 import express from "express";
 import cors from "cors";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import prometheusRoutes from "./routes/prometheus.js";
 import grafanaRoutes from "./routes/grafana.js";
 import servicesRoutes from "./routes/services.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.resolve(__dirname, "..", "dist");
+const hasFrontendBuild = fs.existsSync(distPath);
 
 // Middleware
 app.use(cors());
@@ -25,6 +32,19 @@ app.use("/api/services", servicesRoutes);
 // Uncomment if running on Kubernetes/EKS
 // import kubernetesRoutes from './routes/kubernetes.js';
 // app.use('/api/kubernetes', kubernetesRoutes);
+
+if (hasFrontendBuild) {
+  app.use(express.static(distPath));
+
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+} else {
+  console.warn("Frontend build not found. Serving API-only responses.");
+}
 
 // Error handling middleware
 app.use((err, req, res, _next) => {
