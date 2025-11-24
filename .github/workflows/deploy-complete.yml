@@ -28,9 +28,17 @@ env:
   DOCKER_REGISTRY_MONITOR: blacknash/monitor
 
 jobs:
-  deploy:
-    name: Deploy Complete Stack
+  # ============================================================================
+  # JOB 1: PREPARE & DEPLOY INFRASTRUCTURE
+  # ============================================================================
+  deploy-infra:
+    name: 1. Deploy Infrastructure
     runs-on: ubuntu-latest
+    outputs:
+      ip: ${{ steps.tf_outputs.outputs.ip }}
+      portal_version: ${{ steps.portal_ver.outputs.version }}
+      monitor_version: ${{ steps.monitor_ver.outputs.version }}
+      domain: ${{ steps.domain.outputs.domain }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,7 +61,101 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      # --- Secrets & Env ---
+      # --- Terraform ---
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.9.0
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          terraform_wrapper: false
+
+      - name: Fetch Terraform Outputs
+        id: tf_outputs
+        env:
+          TF_IN_AUTOMATION: true
+        run: |
+          cd infrastructure/terraform
+          terraform init -input=false
+          IP=$(terraform output -raw ec2_instance_1_public_ip)
+          terraform output -raw private_key_pem > ../../private_key.pem
+          chmod 600 ../../private_key.pem
+          echo "ip=$IP" >> $GITHUB_OUTPUT
+
+          # Upload key for next jobs
+          mkdir -p ~/.ssh
+          cp ../../private_key.pem ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Determine Domain
+        id: domain
+        run: |
+          DOMAIN="${{ secrets.PRODUCTION_DOMAIN }}"
+          [ -z "$DOMAIN" ] && DOMAIN="portal.cecre.net"
+          echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
+
+      - name: Cache SSH Key
+        uses: actions/cache@v3
+        with:
+          path: ~/.ssh/id_rsa
+          key: ssh-key-${{ github.run_id }}
+
+      # --- Ansible Setup ---
+      - name: Install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install ansible
+
+      - name: Generate Inventory
+        run: |
+          mkdir -p deployment/ansible
+          cat > deployment/ansible/inventory-github.yml <<EOF
+          all:
+            hosts:
+              production-server:
+                ansible_host: ${{ steps.tf_outputs.outputs.ip }}
+                ansible_user: ubuntu
+                ansible_ssh_private_key_file: ~/.ssh/id_rsa
+                ansible_python_interpreter: /usr/bin/python3
+                ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+                ansible_become: true
+                ansible_become_method: sudo
+                ansible_become_flags: "-n"
+          EOF
+
+      - name: Deploy Infrastructure
+        if: ${{ github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'infra-only' }}
+        working-directory: ./deployment/ansible
+        run: ansible-playbook -i inventory-github.yml setup-infrastructure.yml
+
+      - name: Test Infrastructure (SSH)
+        if: ${{ github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'infra-only' }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ steps.tf_outputs.outputs.ip }} "uptime"
+
+  # ============================================================================
+  # JOB 2: DEPLOY PORTAL APP
+  # ============================================================================
+  deploy-portal:
+    name: 2. Deploy Portal App
+    needs: deploy-infra
+    if: ${{ github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'portal-only' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore SSH Key
+        uses: actions/cache@v3
+        with:
+          path: ~/.ssh/id_rsa
+          key: ssh-key-${{ github.run_id }}
+
+      - name: Install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install ansible
+
       - name: Generate .env file
         run: |
           cat > .env <<EOF
@@ -82,34 +184,6 @@ jobs:
           HTTPS_PORT=443
           EOF
 
-      # --- Terraform ---
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.9.0
-          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
-          terraform_wrapper: false
-
-      - name: Fetch Terraform Outputs
-        id: tf_outputs
-        env:
-          TF_IN_AUTOMATION: true
-        run: |
-          cd infrastructure/terraform
-          terraform init -input=false
-          IP=$(terraform output -raw ec2_instance_1_public_ip)
-          terraform output -raw private_key_pem > ../../private_key.pem
-          chmod 600 ../../private_key.pem
-          echo "ip=$IP" >> $GITHUB_OUTPUT
-
-      - name: Determine Domain
-        id: domain
-        run: |
-          DOMAIN="${{ secrets.PRODUCTION_DOMAIN }}"
-          [ -z "$DOMAIN" ] && DOMAIN="portal.cecre.net"
-          echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
-
-      # --- Ansible Inventory ---
       - name: Generate Inventory
         run: |
           mkdir -p deployment/ansible
@@ -117,37 +191,52 @@ jobs:
           all:
             hosts:
               production-server:
-                ansible_host: ${{ steps.tf_outputs.outputs.ip }}
+                ansible_host: ${{ needs.deploy-infra.outputs.ip }}
                 ansible_user: ubuntu
-                ansible_ssh_private_key_file: ${{ github.workspace }}/private_key.pem
+                ansible_ssh_private_key_file: ~/.ssh/id_rsa
                 ansible_python_interpreter: /usr/bin/python3
                 ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
                 ansible_become: true
                 ansible_become_method: sudo
                 ansible_become_flags: "-n"
             vars:
-              # Portal App Vars
               app_name: school-portal
-              app_version: "${{ steps.portal_ver.outputs.version }}"
+              app_version: "${{ needs.deploy-infra.outputs.portal_version }}"
               docker_registry: ${{ env.DOCKER_REGISTRY_PORTAL }}
-              production_ip: ${{ steps.tf_outputs.outputs.ip }}
-              production_domain: "${{ steps.domain.outputs.domain }}"
+              production_ip: ${{ needs.deploy-infra.outputs.ip }}
+              production_domain: "${{ needs.deploy-infra.outputs.domain }}"
               use_ip: "${{ secrets.USE_IP || 'false' }}"
               use_https: "${{ secrets.USE_HTTPS || 'true' }}"
               letsencrypt_email: ${{ secrets.LETSENCRYPT_EMAIL }}
               k8s_namespace: ${{ secrets.K8S_NAMESPACE || 'default' }}
-              
-              # Monitor App Vars
-              monitor_app_name: monitor-app
-              monitor_docker_registry: ${{ env.DOCKER_REGISTRY_MONITOR }}
-              monitor_app_version: "${{ steps.monitor_ver.outputs.version }}"
-              monitoring_namespace: monitoring
           EOF
 
-      - name: Setup SSH
+      - name: Deploy Portal App
+        working-directory: ./deployment/ansible
+        run: ansible-playbook -i inventory-github.yml deploy-app.yml
+
+      - name: Test Portal App (Curl)
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ steps.tf_outputs.outputs.ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Wait a bit for ingress
+          sleep 30
+          curl -k -v https://${{ needs.deploy-infra.outputs.ip }}:3443 || curl -v http://${{ needs.deploy-infra.outputs.ip }}:3000
+
+  # ============================================================================
+  # JOB 3: DEPLOY MONITOR APP
+  # ============================================================================
+  deploy-monitor-app:
+    name: 3. Deploy Monitor App
+    needs: [deploy-infra, deploy-portal]
+    if: ${{ always() && (github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'monitor-app-only') && needs.deploy-infra.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore SSH Key
+        uses: actions/cache@v3
+        with:
+          path: ~/.ssh/id_rsa
+          key: ssh-key-${{ github.run_id }}
 
       - name: Install Ansible
         run: |
@@ -155,37 +244,82 @@ jobs:
           sudo apt-get install -y python3-pip
           pip3 install ansible
 
-      # --- Deployment Logic ---
-      - name: Run Deployment
-        working-directory: ./deployment/ansible
+      - name: Generate Inventory
         run: |
-          TYPE="${{ github.event.inputs.deploy_type }}"
+          mkdir -p deployment/ansible
+          cat > deployment/ansible/inventory-github.yml <<EOF
+          all:
+            hosts:
+              production-server:
+                ansible_host: ${{ needs.deploy-infra.outputs.ip }}
+                ansible_user: ubuntu
+                ansible_ssh_private_key_file: ~/.ssh/id_rsa
+                ansible_python_interpreter: /usr/bin/python3
+                ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+                ansible_become: true
+                ansible_become_method: sudo
+                ansible_become_flags: "-n"
+            vars:
+              docker_registry: ${{ env.DOCKER_REGISTRY_MONITOR }}
+              app_version: "${{ needs.deploy-infra.outputs.monitor_version }}"
+              monitoring_namespace: monitoring
+          EOF
 
-          case $TYPE in
-            "all")
-              ansible-playbook -i inventory-github.yml deploy-complete.yml
-              ;;
-            "infra-only")
-              ansible-playbook -i inventory-github.yml setup-infrastructure.yml
-              ;;
-            "portal-only")
-              ansible-playbook -i inventory-github.yml deploy-app.yml
-              ;;
-            "monitor-stack-only")
-              ansible-playbook -i inventory-github.yml deploy-monitoring-stack.yml
-              ;;
-            "monitor-app-only")
-              # Override vars for monitor app specific deployment if needed, 
-              # but inventory vars should cover it.
-              # Note: deploy-monitor-app.yml expects 'docker_registry' and 'app_version' 
-              # which are generic names. We need to pass them explicitly or update playbook.
-              # Let's pass them as extra vars to be safe.
-              ansible-playbook -i inventory-github.yml deploy-monitor-app.yml \
-                -e "docker_registry=${{ env.DOCKER_REGISTRY_MONITOR }}" \
-                -e "app_version=${{ steps.monitor_ver.outputs.version }}"
-              ;;
-          esac
+      - name: Deploy Monitor App
+        working-directory: ./deployment/ansible
+        run: ansible-playbook -i inventory-github.yml deploy-monitor-app.yml
 
-      - name: Cleanup
-        if: always()
-        run: rm -f private_key.pem
+      - name: Test Monitor App
+        run: |
+          # Basic check if pod is running via SSH
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ needs.deploy-infra.outputs.ip }} "/snap/bin/microk8s kubectl get pods -n monitoring -l app=monitor-app | grep monitor-app"
+
+  # ============================================================================
+  # JOB 4: DEPLOY MONITORING STACK (Prometheus/Grafana)
+  # ============================================================================
+  deploy-monitor-stack:
+    name: 4. Deploy Monitoring Stack
+    needs: [deploy-infra, deploy-monitor-app]
+    if: ${{ always() && (github.event.inputs.deploy_type == 'all' || github.event.inputs.deploy_type == 'monitor-stack-only') && needs.deploy-infra.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore SSH Key
+        uses: actions/cache@v3
+        with:
+          path: ~/.ssh/id_rsa
+          key: ssh-key-${{ github.run_id }}
+
+      - name: Install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install ansible
+
+      - name: Generate Inventory
+        run: |
+          mkdir -p deployment/ansible
+          cat > deployment/ansible/inventory-github.yml <<EOF
+          all:
+            hosts:
+              production-server:
+                ansible_host: ${{ needs.deploy-infra.outputs.ip }}
+                ansible_user: ubuntu
+                ansible_ssh_private_key_file: ~/.ssh/id_rsa
+                ansible_python_interpreter: /usr/bin/python3
+                ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+                ansible_become: true
+                ansible_become_method: sudo
+                ansible_become_flags: "-n"
+            vars:
+              monitoring_namespace: monitoring
+          EOF
+
+      - name: Deploy Monitoring Stack
+        working-directory: ./deployment/ansible
+        run: ansible-playbook -i inventory-github.yml deploy-monitoring-stack.yml
+
+      - name: Test Monitoring Stack
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ needs.deploy-infra.outputs.ip }} "/snap/bin/microk8s kubectl get pods -n monitoring -l app=prometheus | grep prometheus"
