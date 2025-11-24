@@ -20,7 +20,7 @@ jobs:
   build-and-push:
     name: Build and Push Monitor App
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
