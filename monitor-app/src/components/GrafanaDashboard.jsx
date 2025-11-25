@@ -156,9 +156,16 @@ const GrafanaDashboard = () => {
           <h2>Grafana Dashboards</h2>
         </div>
         <div className="error">{error}</div>
-        <div className="info-message" style={{marginTop: '20px'}}>
-          <p>Grafana may still be starting up or dashboards need to be created.</p>
-          <p>Access Grafana directly at: <a href="/grafana" target="_blank" rel="noopener noreferrer">https://portal.cecre.net/grafana</a></p>
+        <div className="info-message" style={{ marginTop: "20px" }}>
+          <p>
+            Grafana may still be starting up or dashboards need to be created.
+          </p>
+          <p>
+            Access Grafana directly at:{" "}
+            <a href="/grafana" target="_blank" rel="noopener noreferrer">
+              https://portal.cecre.net/grafana
+            </a>
+          </p>
         </div>
       </div>
     );
@@ -176,7 +183,12 @@ const GrafanaDashboard = () => {
         <div className="info-message">
           <h3>No Dashboards Found</h3>
           <p>No Grafana dashboards are currently configured.</p>
-          <p>Access Grafana directly to create dashboards: <a href="/grafana" target="_blank" rel="noopener noreferrer">https://portal.cecre.net/grafana</a></p>
+          <p>
+            Access Grafana directly to create dashboards:{" "}
+            <a href="/grafana" target="_blank" rel="noopener noreferrer">
+              https://portal.cecre.net/grafana
+            </a>
+          </p>
           <p>Default credentials: admin / admin123</p>
         </div>
       </div>

@@ -48,7 +48,7 @@ const PrometheusMetrics = () => {
         podsPending: 'count(kube_pod_status_phase{phase="Pending"})',
         podsFailed: 'count(kube_pod_status_phase{phase="Failed"})',
         podsSucceeded: 'count(kube_pod_status_phase{phase="Succeeded"})',
-        podsByPhase: 'kube_pod_status_phase',
+        podsByPhase: "kube_pod_status_phase",
       };
 
       const metricPromises = Object.entries(queries).map(
@@ -202,7 +202,9 @@ const PrometheusMetrics = () => {
                       <td>{item.metric?.pod || "Unknown"}</td>
                       <td>{item.metric?.namespace || "default"}</td>
                       <td>
-                        <span className={`status-badge status-${item.metric?.phase?.toLowerCase()}`}>
+                        <span
+                          className={`status-badge status-${item.metric?.phase?.toLowerCase()}`}
+                        >
                           {item.metric?.phase || "Unknown"}
                         </span>
                       </td>
