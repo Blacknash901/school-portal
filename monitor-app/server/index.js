@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import prometheusRoutes from "./routes/prometheus.js";
 import grafanaRoutes from "./routes/grafana.js";
 import servicesRoutes from "./routes/services.js";
+import kubernetesRoutes from "./routes/kubernetes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -29,11 +30,7 @@ const apiPath = BASE_PATH ? `${BASE_PATH}/api` : "/api";
 app.use(`${apiPath}/prometheus`, prometheusRoutes);
 app.use(`${apiPath}/grafana`, grafanaRoutes);
 app.use(`${apiPath}/services`, servicesRoutes);
-
-// Kubernetes routes - optional for EC2 deployment
-// Uncomment if running on Kubernetes/EKS
-// import kubernetesRoutes from './routes/kubernetes.js';
-// app.use(`${apiPath}/kubernetes`, kubernetesRoutes);
+app.use(`${apiPath}/kubernetes`, kubernetesRoutes);
 
 if (hasFrontendBuild) {
   // Serve static files with base path

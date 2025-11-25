@@ -44,6 +44,11 @@ const PrometheusMetrics = () => {
         podCount: "count(kube_pod_info)",
         nodeCount: "count(kube_node_info)",
         httpRequests: "sum(rate(http_requests_total[5m]))",
+        podsRunning: 'count(kube_pod_status_phase{phase="Running"})',
+        podsPending: 'count(kube_pod_status_phase{phase="Pending"})',
+        podsFailed: 'count(kube_pod_status_phase{phase="Failed"})',
+        podsSucceeded: 'count(kube_pod_status_phase{phase="Succeeded"})',
+        podsByPhase: 'kube_pod_status_phase',
       };
 
       const metricPromises = Object.entries(queries).map(
@@ -139,9 +144,27 @@ const PrometheusMetrics = () => {
       {/* Summary Cards */}
       <div className="metrics-summary">
         <div className="metric-card">
-          <div className="metric-label">Pods</div>
+          <div className="metric-label">Total Pods</div>
           <div className="metric-value">
             {metrics?.podCount?.[0]?.value?.[1] || "0"}
+          </div>
+        </div>
+        <div className="metric-card success">
+          <div className="metric-label">Running</div>
+          <div className="metric-value">
+            {metrics?.podsRunning?.[0]?.value?.[1] || "0"}
+          </div>
+        </div>
+        <div className="metric-card warning">
+          <div className="metric-label">Pending</div>
+          <div className="metric-value">
+            {metrics?.podsPending?.[0]?.value?.[1] || "0"}
+          </div>
+        </div>
+        <div className="metric-card error">
+          <div className="metric-label">Failed</div>
+          <div className="metric-value">
+            {metrics?.podsFailed?.[0]?.value?.[1] || "0"}
           </div>
         </div>
         <div className="metric-card">
@@ -156,15 +179,40 @@ const PrometheusMetrics = () => {
             {alerts.filter((a) => a.state === "firing").length}
           </div>
         </div>
-        <div className="metric-card">
-          <div className="metric-label">HTTP Req/s</div>
-          <div className="metric-value">
-            {metrics?.httpRequests?.[0]?.value?.[1]
-              ? parseFloat(metrics.httpRequests[0].value[1]).toFixed(2)
-              : "0"}
+      </div>
+
+      {/* Pod Status Details */}
+      {metrics?.podsByPhase?.length > 0 && (
+        <div className="metrics-section">
+          <h3>Pod Status Details</h3>
+          <div className="metrics-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Pod Name</th>
+                  <th>Namespace</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metrics.podsByPhase
+                  .filter((item) => item.value?.[1] === "1")
+                  .map((item, idx) => (
+                    <tr key={idx}>
+                      <td>{item.metric?.pod || "Unknown"}</td>
+                      <td>{item.metric?.namespace || "default"}</td>
+                      <td>
+                        <span className={`status-badge status-${item.metric?.phase?.toLowerCase()}`}>
+                          {item.metric?.phase || "Unknown"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Alerts Section */}
       {alerts.length > 0 && (

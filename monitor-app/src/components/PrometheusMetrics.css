@@ -59,6 +59,51 @@
   color: #dc3545;
 }
 
+.metric-card.success .metric-value {
+  color: #28a745;
+}
+
+.metric-card.warning .metric-value {
+  color: #ffc107;
+}
+
+.metric-card.error .metric-value {
+  color: #dc3545;
+}
+
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge.status-running {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.status-pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.status-failed {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.status-badge.status-succeeded {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.status-badge.status-unknown {
+  background: #e2e3e5;
+  color: #383d41;
+}
+
 .alerts-section,
 .metrics-section,
 .targets-section {

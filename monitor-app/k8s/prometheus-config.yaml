@@ -84,6 +84,11 @@ data:
         static_configs:
           - targets: ['cloudwatch-exporter.monitoring.svc:9106']
 
+      # Kube State Metrics - Pod and cluster state metrics
+      - job_name: 'kube-state-metrics'
+        static_configs:
+          - targets: ['kube-state-metrics.monitoring.svc:8080']
+
       # Portal CECRE - Blackbox Probe
       - job_name: 'portal-cecre-http'
         metrics_path: /probe
