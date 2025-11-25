@@ -4,13 +4,16 @@ metadata:
   name: grafana-dashboard-kubernetes
   namespace: monitoring
 data:
-  kubernetes-dashboard.json: |
+  kubernetes-dashboard.json: |-
     {
-      "dashboard": {
-        "title": "Kubernetes Cluster Monitoring",
-        "tags": ["kubernetes", "cluster"],
-        "timezone": "browser",
-        "panels": [
+      "title": "Kubernetes Cluster Monitoring",
+      "tags": ["kubernetes", "cluster"],
+      "timezone": "browser",
+      "uid": "kubernetes-overview",
+      "schemaVersion": 16,
+      "version": 0,
+      "refresh": "30s",
+      "panels": [
           {
             "id": 1,
             "title": "Cluster CPU Usage",
@@ -89,9 +92,5 @@ data:
             ],
             "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}
           }
-        ],
-        "refresh": "30s",
-        "schemaVersion": 27,
-        "version": 1
+        ]
       }
-    }
