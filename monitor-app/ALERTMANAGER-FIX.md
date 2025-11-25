@@ -3,17 +3,21 @@
 ## Issues Identified
 
 ### 1. alertmanager-webhook: CrashLoopBackOff (30 restarts)
+
 **Root Cause**: The Secret definition in `k8s/alertmanager-deployment.yaml` contained template variables that were not being substituted.
 
-**Fix Applied**: 
+**Fix Applied**:
+
 - Removed the stringData section with template variables from the YAML file
 - Added documentation explaining that the secret is created by Ansible playbook
 - The playbook correctly creates the secret with actual values from GitHub Secrets
 
 **Files Changed**:
+
 - `monitor-app/k8s/alertmanager-deployment.yaml`
 
 **How it works now**:
+
 1. Ansible playbook reads GitHub Secrets: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID_AM`, `AZURE_CLIENT_SECRET_AM`
 2. Playbook creates the secret with actual values using `kubectl apply`
 3. The webhook deployment references the secret keys correctly:
@@ -21,18 +25,22 @@
    - `AZURE_CLIENT_SECRET` (env var) ← `AZURE_CLIENT_SECRET_AM` (secret key)
 
 ### 2. alertmanager: Pending (PodScheduled: False, no events)
+
 **Status**: Requires investigation on the cluster
 
 **Possible Causes**:
+
 - Node resource constraints (t4g.medium has 2 vCPU, 4GB RAM)
 - Taints or node selectors preventing scheduling
 - Another pod consuming all resources
 
 **Resource Requests** (Alertmanager pod):
+
 - CPU: 100m request, 500m limit
 - Memory: 128Mi request, 256Mi limit
 
 **Diagnosis Steps**:
+
 ```bash
 # Check node capacity and allocatable resources
 kubectl describe nodes
@@ -48,9 +56,11 @@ kubectl get events -n monitoring --sort-by='.lastTimestamp'
 ```
 
 ### 3. kube-state-metrics: CrashLoopBackOff (45 restarts)
+
 **Root Cause**: Liveness/readiness probes were too aggressive (5 second delay, 5 second timeout)
 
 **Fix Applied**:
+
 - Increased initialDelaySeconds: 15s for liveness, 10s for readiness
 - Increased timeoutSeconds: 10s for both probes
 - Added periodSeconds: 30s (check every 30 seconds instead of default 10s)
@@ -58,15 +68,18 @@ kubectl get events -n monitoring --sort-by='.lastTimestamp'
 - Added resource requests/limits (50m-200m CPU, 128Mi-256Mi memory)
 
 **Files Changed**:
+
 - `monitor-app/k8s/kube-state-metrics.yaml`
 
 **Why this fixes it**:
 The container starts successfully but the probes were killing it before it could fully initialize. The logs show:
+
 - ✅ Starting kube-state-metrics
 - ✅ Tested communication with server
 - ❌ Then exits (killed by probe failure)
 
 With longer delays and timeouts, the service has time to:
+
 1. Start the HTTP servers on ports 8080 and 8081
 2. Initialize all metric collectors
 3. Respond to health checks
@@ -74,23 +87,28 @@ With longer delays and timeouts, the service has time to:
 ## Deployment Steps
 
 ### 1. Verify GitHub Secrets are Set
+
 Ensure these secrets exist in GitHub repository settings:
+
 - `AZURE_TENANT_ID`
 - `AZURE_CLIENT_ID_AM`
 - `AZURE_CLIENT_SECRET_AM`
 
 ### 2. Redeploy Monitoring Stack
+
 ```bash
 # From deployment/ansible directory
 ansible-playbook -i inventory-production-ssh.yml deploy-monitoring-stack.yml
 ```
 
 This will:
+
 1. Delete existing alertmanager-webhook-secrets
 2. Create new secret with actual values from GitHub Secrets
 3. Apply all monitoring manifests (Prometheus, Grafana, Alertmanager, kube-state-metrics)
 
 ### 3. Verify Secret Creation
+
 ```bash
 # Check if secret was created correctly
 kubectl get secret -n monitoring alertmanager-webhook-secrets
@@ -101,6 +119,7 @@ kubectl get secret -n monitoring alertmanager-webhook-secrets -o jsonpath='{.dat
 ```
 
 ### 4. Monitor Pod Status
+
 ```bash
 # Watch pods come up
 kubectl get pods -n monitoring -w
@@ -112,6 +131,7 @@ kubectl logs -n monitoring -l app=alertmanager-webhook -f
 ## Expected Behavior After Fix
 
 ### alertmanager-webhook
+
 - Status: Running (1/1)
 - Logs should show:
   ```
@@ -120,10 +140,12 @@ kubectl logs -n monitoring -l app=alertmanager-webhook -f
   ```
 
 ### alertmanager
+
 - Status: Running (1/1) or Pending (requires investigation)
 - Accessible at: https://portal.cecre.net/alertmanager
 
 ### kube-state-metrics
+
 - Status: Running (1/1) or CrashLoopBackOff (requires log analysis)
 - Should expose metrics at: http://kube-state-metrics.monitoring.svc:8080/metrics
 
@@ -150,9 +172,11 @@ curl -H "Content-Type: application/json" -d '[{
 Check if email is received at: portal_status_notification@cecre.net
 
 ## Files Modified
+
 - `monitor-app/k8s/alertmanager-deployment.yaml` - Removed template variables from Secret, added documentation
 - `monitor-app/k8s/kube-state-metrics.yaml` - Fixed probe timing and added resource limits
 
 ## Files to Review
+
 - `deployment/ansible/deploy-monitoring-stack.yml` - Secret creation (already correct)
 - `monitor-app/k8s/kube-state-metrics.yaml` - RBAC configuration (already correct)
