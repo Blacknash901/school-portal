@@ -1,18 +1,43 @@
+/**
+ * Kubernetes Monitor Component
+ * 
+ * Comprehensive monitoring interface for Kubernetes cluster resources.
+ * Displays detailed information about cluster state, workloads, and events.
+ * 
+ * Features:
+ * - Overview: Cluster summary, pod status distribution, recent events
+ * - Nodes: List of cluster nodes with capacity and status
+ * - Pods: All pods with status, namespace, restarts, and age
+ * - Services: Kubernetes services with type, IPs, and ports
+ * - Deployments: Deployment status with replica counts
+ * - Events: Cluster events for troubleshooting
+ * 
+ * Auto-refreshes every 30 seconds to show current cluster state.
+ * 
+ * @component
+ */
+
 import { useState, useEffect } from "react";
 import { API_ENDPOINTS } from "../config/urls";
 import "./KubernetesMonitor.css";
 
 const KubernetesMonitor = () => {
+  // Cluster-level information (namespace count, etc.)
   const [clusterInfo, setClusterInfo] = useState(null);
-  const [nodes, setNodes] = useState([]);
-  const [pods, setPods] = useState([]);
-  const [services, setServices] = useState([]);
-  const [deployments, setDeployments] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [nodes, setNodes] = useState([]);              // List of cluster nodes
+  const [pods, setPods] = useState([]);                // List of all pods
+  const [services, setServices] = useState([]);        // List of Kubernetes services
+  const [deployments, setDeployments] = useState([]);  // List of deployments
+  const [events, setEvents] = useState([]);            // Recent cluster events
+  const [activeTab, setActiveTab] = useState("overview");  // Current tab view
+  const [loading, setLoading] = useState(true);        // Loading state
+  const [error, setError] = useState(null);            // Error message
 
+  /**
+   * Fetch all Kubernetes cluster data in parallel
+   * Makes simultaneous API calls for cluster info, nodes, pods, services,
+   * deployments, and events for optimal performance
+   */
   const fetchKubernetesData = async () => {
     try {
       setLoading(true);
@@ -71,12 +96,20 @@ const KubernetesMonitor = () => {
     }
   };
 
+  // Fetch data on mount and set up auto-refresh every 30 seconds
   useEffect(() => {
     fetchKubernetesData();
     const interval = setInterval(fetchKubernetesData, 30000);
-    return () => clearInterval(interval);
+    return () => clearInterval(interval);  // Cleanup on unmount
   }, []);
 
+  /**
+   * Get CSS class for status badge based on status value
+   * Maps Kubernetes status strings to visual indicators
+   * 
+   * @param {string} status - The status value (Running, Pending, True, etc.)
+   * @returns {string} CSS class name for styling
+   */
   const getStatusColor = (status) => {
     if (status === "Running" || status === "True" || status === "Ready")
       return "status-success";

@@ -1,15 +1,44 @@
+/**
+ * Service Monitor Component
+ * 
+ * Monitors the uptime and latency of configured service URLs by performing
+ * periodic health checks. Displays service status, response times, and historical
+ * metrics in a visual dashboard.
+ * 
+ * Features:
+ * - Real-time health checks every 30 seconds
+ * - Latency measurement and history (last 10 checks)
+ * - Success/failure count tracking
+ * - Visual status indicators (UP/DOWN)
+ * - Average latency calculation
+ * - Manual refresh capability
+ * 
+ * @component
+ */
+
 import { useState, useEffect, useCallback } from "react";
 import { MONITOR_URLS } from "../config/urls";
 import "./ServiceMonitor.css";
 
 const ServiceMonitor = () => {
+  // Store current status of all monitored services
   const [services, setServices] = useState([]);
+  
+  // Track historical metrics for each service
   const [metrics, setMetrics] = useState({
-    successCount: {},
-    failureCount: {},
-    latencyHistory: {},
+    successCount: {},    // Count of successful checks per URL
+    failureCount: {},    // Count of failed checks per URL
+    latencyHistory: {},  // Array of last 10 latency measurements per URL
   });
 
+  /**
+   * Check the health of a single URL
+   * Uses HEAD request with no-cors mode for local testing
+   * Measures latency using performance.now()
+   * 
+   * @param {string} url - The URL to check
+   * @returns {Object} Service status object with url, status, latency, timestamp
+   */
   const checkUrl = async (url) => {
     const startTime = performance.now();
     try {
@@ -40,13 +69,19 @@ const ServiceMonitor = () => {
     }
   };
 
+  /**
+   * Check all configured services in parallel
+   * Updates both current service status and historical metrics
+   * Maintains last 10 latency measurements per service
+   */
   const checkAllServices = useCallback(async () => {
     console.log("Checking all services...");
+    // Check all URLs concurrently for faster results
     const results = await Promise.all(MONITOR_URLS.map((url) => checkUrl(url)));
 
     setServices(results);
 
-    // Update metrics
+    // Update historical metrics (success/failure counts and latency)
     setMetrics((prev) => {
       const newMetrics = { ...prev };
 

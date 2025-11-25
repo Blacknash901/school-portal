@@ -1,19 +1,43 @@
+/**
+ * Prometheus Metrics Component
+ * 
+ * Displays real-time metrics from Prometheus server including:
+ * - CPU usage by pod
+ * - Memory usage by pod  
+ * - Pod and node counts
+ * - HTTP request rates
+ * - Active alerts and their status
+ * - Scrape targets and their health
+ * 
+ * Fetches data from the backend API which proxies to Prometheus.
+ * Auto-refreshes every 30 seconds to show current cluster state.
+ * 
+ * @component
+ */
+
 import { useState, useEffect } from "react";
 import { API_ENDPOINTS } from "../config/urls";
 import "./PrometheusMetrics.css";
 
 const PrometheusMetrics = () => {
+  // Store fetched metrics data from Prometheus queries
   const [metrics, setMetrics] = useState(null);
-  const [alerts, setAlerts] = useState([]);
-  const [targets, setTargets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [alerts, setAlerts] = useState([]);      // Active Prometheus alerts
+  const [targets, setTargets] = useState([]);    // Prometheus scrape targets
+  const [loading, setLoading] = useState(true);  // Loading state for UI
+  const [error, setError] = useState(null);      // Error message if fetch fails
 
+  /**
+   * Fetch metrics, alerts, and targets from Prometheus API
+   * Executes multiple PromQL queries in parallel for efficiency
+   * Queries include: CPU usage, memory usage, pod count, node count, HTTP requests
+   */
   const fetchMetrics = async () => {
     try {
       setLoading(true);
 
-      // Fetch multiple metrics in parallel
+      // Define PromQL queries for different metrics
+      // Each query is executed against Prometheus to get current cluster state
       const queries = {
         cpuUsage: "sum(rate(container_cpu_usage_seconds_total[5m])) by (pod)",
         memoryUsage: "sum(container_memory_usage_bytes) by (pod)",
