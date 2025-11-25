@@ -26,6 +26,13 @@ spec:
                 name: prometheus
                 port:
                   number: 9090
+          - path: /alertmanager
+            pathType: Prefix
+            backend:
+              service:
+                name: alertmanager
+                port:
+                  number: 9093
           - path: /monitor
             pathType: Prefix
             backend:

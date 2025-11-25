@@ -18,6 +18,9 @@
   vars:
     k8s_dir: "/opt/monitor-app/k8s"
     monitoring_namespace: "monitoring"
+    azure_tenant_id: "{{ lookup('env', 'AZURE_TENANT_ID') }}"
+    azure_client_id_am: "{{ lookup('env', 'AZURE_CLIENT_ID_AM') }}"
+    azure_client_secret_am: "{{ lookup('env', 'AZURE_CLIENT_SECRET_AM') }}"
 
   tasks:
     - name: Create monitoring directory
@@ -63,6 +66,27 @@
 
     - name: Deploy Blackbox Exporter
       command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/blackbox-exporter.yaml
+
+    - name: Create Alertmanager webhook secrets
+      shell: |
+        cat <<EOF | /snap/bin/microk8s kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: alertmanager-webhook-secrets
+          namespace: {{ monitoring_namespace }}
+        type: Opaque
+        stringData:
+          AZURE_TENANT_ID: "{{ azure_tenant_id }}"
+          AZURE_CLIENT_ID_AM: "{{ azure_client_id_am }}"
+          AZURE_CLIENT_SECRET_AM: "{{ azure_client_secret_am }}"
+          EMAIL_TO: "portal_status_notification@cecre.net"
+        EOF
+      when: azure_tenant_id != "" and azure_client_id_am != "" and azure_client_secret_am != ""
+      no_log: true
+
+    - name: Deploy Alertmanager
+      command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/alertmanager-deployment.yaml
 
     - name: Deploy Monitoring Ingress
       command: /snap/bin/microk8s kubectl apply -f {{ k8s_dir }}/monitoring-ingress.yaml

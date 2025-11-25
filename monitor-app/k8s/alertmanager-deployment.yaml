@@ -1,0 +1,191 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: 'webhook-notifications'
+      routes:
+        - match:
+            severity: critical
+          receiver: 'webhook-critical'
+          continue: true
+        - match:
+            severity: warning
+          receiver: 'webhook-notifications'
+
+    receivers:
+      - name: 'webhook-notifications'
+        webhook_configs:
+          - url: 'http://alertmanager-webhook:8080/webhook'
+            send_resolved: true
+
+      - name: 'webhook-critical'
+        webhook_configs:
+          - url: 'http://alertmanager-webhook:8080/webhook/critical'
+            send_resolved: true
+
+    inhibit_rules:
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'cluster', 'service']
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-webhook-secrets
+  namespace: monitoring
+type: Opaque
+stringData:
+  # Azure AD App Registration credentials for sending emails via Microsoft Graph API
+  # These should be injected from GitHub Secrets during deployment
+  # Uses same TENANT_ID as portal, but different CLIENT_ID and CLIENT_SECRET (with _AM suffix)
+  AZURE_TENANT_ID: "${AZURE_TENANT_ID}"
+  AZURE_CLIENT_ID_AM: "${AZURE_CLIENT_ID_AM}"
+  AZURE_CLIENT_SECRET_AM: "${AZURE_CLIENT_SECRET_AM}"
+  EMAIL_TO: "portal_status_notification@cecre.net"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager-webhook
+  namespace: monitoring
+  labels:
+    app: alertmanager-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager-webhook
+  template:
+    metadata:
+      labels:
+        app: alertmanager-webhook
+    spec:
+      containers:
+        - name: webhook
+          image: blacknash/alertmanager-webhook:latest
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: AZURE_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-webhook-secrets
+                  key: AZURE_TENANT_ID
+            - name: AZURE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-webhook-secrets
+                  key: AZURE_CLIENT_ID_AM
+            - name: AZURE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-webhook-secrets
+                  key: AZURE_CLIENT_SECRET_AM
+            - name: EMAIL_TO
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-webhook-secrets
+                  key: EMAIL_TO
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-webhook
+  namespace: monitoring
+  labels:
+    app: alertmanager-webhook
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: alertmanager-webhook
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:latest
+          args:
+            - "--config.file=/etc/alertmanager/alertmanager.yml"
+            - "--storage.path=/alertmanager"
+            - "--web.external-url=https://portal.cecre.net/alertmanager"
+            - "--web.route-prefix=/"
+          ports:
+            - containerPort: 9093
+              name: web
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/alertmanager
+            - name: alertmanager-storage
+              mountPath: /alertmanager
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: config-volume
+          configMap:
+            name: alertmanager-config
+        - name: alertmanager-storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+spec:
+  type: NodePort
+  ports:
+    - port: 9093
+      targetPort: 9093
+      protocol: TCP
+      name: web
+      nodePort: 30093
+  selector:
+    app: alertmanager

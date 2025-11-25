@@ -1,6 +1,67 @@
-# School Portal
+# CECRE Portal & Monitoring System
 
-A modern, secure web portal for educational institutions with Azure AD authentication, role-based access control, and a beautiful dark/light theme interface.
+> **🎓 Final Project** - DevOps/Monitoring Academy  
+> A production-grade educational portal with comprehensive monitoring, alerting, and full infrastructure automation.
+
+**Live Demo:** https://portal.cecre.net
+
+[![Deploy Status](https://github.com/Blacknash901/school-portal/actions/workflows/deploy-complete.yml/badge.svg)](https://github.com/Blacknash901/school-portal/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## 📚 Quick Links
+
+- **[🎯 Final Project Summary](docs/FINAL-PROJECT-SUMMARY.md)** - Complete project overview for academy submission
+- **[📸 Screenshots Guide](docs/SCREENSHOTS.md)** - Evidence and documentation requirements
+- **[🚨 Alertmanager Setup](docs/guides/ALERTMANAGER-SETUP.md)** - Email notification configuration
+- **[🤝 Contributing](CONTRIBUTING.md)** - Contribution guidelines
+- **[📄 License](LICENSE)** - MIT License
+
+---
+
+## 🎓 Academy Project Compliance
+
+This project fulfills **all required and bonus requirements** for the final academy project:
+
+| Requirement                        | Status                                        |
+| ---------------------------------- | --------------------------------------------- |
+| ✅ Application with metrics/alerts | Complete                                      |
+| ✅ Kubernetes deployment           | MicroK8s on AWS EC2                           |
+| ✅ Prometheus scraping             | 7+ scrape jobs configured                     |
+| ✅ Grafana dashboards              | Provisioned with datasources                  |
+| ✅ Alertmanager deployment         | Email notifications enabled                   |
+| ✅ Professional documentation      | README, LICENSE, CONTRIBUTING                 |
+| 🌟 Alertmanager notifications      | Email to portal_status_notification@cecre.net |
+| 🌟 Infrastructure as Code          | Terraform + Ansible                           |
+| 🌟 CI/CD Pipeline                  | GitHub Actions (4-stage workflow)             |
+
+**See [Final Project Summary](docs/FINAL-PROJECT-SUMMARY.md) for complete details.**
+
+---
+
+## 🏗️ System Architecture
+
+```
+GitHub Actions (CI/CD)
+        ↓
+AWS EC2 (t4g.medium ARM64)
+        ↓
+    MicroK8s
+        ↓
+    ┌───────┬──────────┬────────────┐
+    ↓       ↓          ↓            ↓
+  Portal  Monitor  Prometheus  Alertmanager
+   App     App      + Grafana
+```
+
+**Access Points:**
+
+- 🌐 Portal: https://portal.cecre.net/
+- 📊 Monitor: https://portal.cecre.net/monitor
+- 🔥 Prometheus: https://portal.cecre.net/prometheus
+- 📈 Grafana: https://portal.cecre.net/grafana (admin/admin123)
+- 🚨 Alertmanager: https://portal.cecre.net/alertmanager
+
+---
 
 ## 🚀 Quick Start
 
