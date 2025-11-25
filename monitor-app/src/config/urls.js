@@ -9,7 +9,7 @@ const runtimeOrigin =
   typeof window !== "undefined" ? window.location.origin : undefined;
 const resolvedDefaultApiUrl = import.meta.env.DEV
   ? "http://localhost:3001"
-  : runtimeOrigin || "http://localhost:3001";
+  : runtimeOrigin ? `${runtimeOrigin}/monitor` : "http://localhost:3001";
 
 // API endpoints for the backend (default to same origin in production)
 export const API_BASE_URL = normalizeUrl(

@@ -39,6 +39,8 @@ spec:
           env:
             - name: PORT
               value: "3001"
+            - name: BASE_PATH
+              value: "/monitor"
             - name: PROMETHEUS_URL
               valueFrom:
                 configMapKeyRef:

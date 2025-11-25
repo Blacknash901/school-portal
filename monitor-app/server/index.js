@@ -9,6 +9,7 @@ import servicesRoutes from "./routes/services.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const BASE_PATH = process.env.BASE_PATH || ""; // Support /monitor base path in production
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, "..", "dist");
@@ -18,26 +19,34 @@ const hasFrontendBuild = fs.existsSync(distPath);
 app.use(cors());
 app.use(express.json());
 
-// Health check endpoint
+// Health check endpoint (always at root for k8s probes)
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Routes
-app.use("/api/prometheus", prometheusRoutes);
-app.use("/api/grafana", grafanaRoutes);
-app.use("/api/services", servicesRoutes);
+// Mount API routes with base path if configured
+const apiPath = BASE_PATH ? `${BASE_PATH}/api` : "/api";
+app.use(`${apiPath}/prometheus`, prometheusRoutes);
+app.use(`${apiPath}/grafana`, grafanaRoutes);
+app.use(`${apiPath}/services`, servicesRoutes);
 
 // Kubernetes routes - optional for EC2 deployment
 // Uncomment if running on Kubernetes/EKS
 // import kubernetesRoutes from './routes/kubernetes.js';
-// app.use('/api/kubernetes', kubernetesRoutes);
+// app.use(`${apiPath}/kubernetes`, kubernetesRoutes);
 
 if (hasFrontendBuild) {
-  app.use(express.static(distPath));
+  // Serve static files with base path
+  if (BASE_PATH) {
+    app.use(BASE_PATH, express.static(distPath));
+  } else {
+    app.use(express.static(distPath));
+  }
 
+  // Catch-all route for SPA
   app.get("*", (req, res, next) => {
-    if (req.path.startsWith("/api")) {
+    // Skip API routes
+    if (req.path.includes("/api")) {
       return next();
     }
     res.sendFile(path.join(distPath, "index.html"));
