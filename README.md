@@ -68,19 +68,23 @@ AWS EC2 (t4g.medium ARM64)
 ### Local Development
 
 **Portal App:**
+
 ```bash
 cd portal-app
 npm install
 npm start
 ```
+
 Access at `http://localhost:3000`
 
 **Monitor App:**
+
 ```bash
 cd monitor-app
 npm install
 npm run dev:all  # Runs both frontend and backend
 ```
+
 Access at `http://localhost:5173`
 
 ### Environment Setup
@@ -268,12 +272,14 @@ npm test -- --coverage
 ## 🏗️ Build
 
 **Portal App:**
+
 ```bash
 cd portal-app
 npm run build
 ```
 
 **Monitor App:**
+
 ```bash
 cd monitor-app
 npm run build
@@ -284,6 +290,7 @@ npm run build
 This project uses GitHub Actions for complete infrastructure and application deployment:
 
 **Deploy Complete Stack Workflow** (`.github/workflows/deploy-complete.yml`):
+
 - ✅ **Job 1:** Deploy infrastructure with Terraform (AWS EC2, EBS, Security Groups)
 - ✅ **Job 2:** Build and deploy Portal App to Kubernetes
 - ✅ **Job 3:** Build Alertmanager Webhook (multi-arch: ARM64 + AMD64)
@@ -291,6 +298,7 @@ This project uses GitHub Actions for complete infrastructure and application dep
 - ✅ **Job 5:** Deploy monitoring stack (Prometheus, Grafana, Alertmanager)
 
 **Deployment Flow:**
+
 ```
 Terraform → Ansible → Docker Build → Kubernetes Deploy
 ```
@@ -302,6 +310,7 @@ See [Deploy Complete Workflow](.github/workflows/deploy-complete.yml) for detail
 Configure these secrets in GitHub repository settings:
 
 **Infrastructure & Deployment:**
+
 - `AWS_ACCESS_KEY_ID` - AWS credentials for Terraform
 - `AWS_SECRET_ACCESS_KEY` - AWS secret key
 - `AWS_REGION` - AWS region (default: us-east-1)
@@ -311,6 +320,7 @@ Configure these secrets in GitHub repository settings:
 - `DOCKER_PASSWORD` - Docker Hub password/token
 
 **Portal Application:**
+
 - `AZURE_TENANT_ID` - Azure AD tenant ID (shared with Alertmanager)
 - `REACT_APP_MSAL_CLIENT_ID` - Azure AD app for user login
 - `AZURE_CLIENT_ID` - Azure AD app for Graph API
@@ -320,10 +330,12 @@ Configure these secrets in GitHub repository settings:
 - `REACT_APP_REDIRECT_URI` - Production redirect URI
 
 **Alertmanager Email Notifications:**
+
 - `AZURE_CLIENT_ID_AM` - Azure AD app for sending emails
 - `AZURE_CLIENT_SECRET_AM` - Client secret for email app
 
 **Optional:**
+
 - `REACT_APP_S3_BUCKET_NAME` - S3 bucket for logging
 - `REACT_APP_S3_REGION` - AWS region
 - `REACT_APP_S3_ACCESS_KEY_ID` - AWS access key

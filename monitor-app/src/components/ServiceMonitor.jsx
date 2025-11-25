@@ -1,10 +1,10 @@
 /**
  * Service Monitor Component
- * 
+ *
  * Monitors the uptime and latency of configured service URLs by performing
  * periodic health checks. Displays service status, response times, and historical
  * metrics in a visual dashboard.
- * 
+ *
  * Features:
  * - Real-time health checks every 30 seconds
  * - Latency measurement and history (last 10 checks)
@@ -12,7 +12,7 @@
  * - Visual status indicators (UP/DOWN)
  * - Average latency calculation
  * - Manual refresh capability
- * 
+ *
  * @component
  */
 
@@ -23,19 +23,19 @@ import "./ServiceMonitor.css";
 const ServiceMonitor = () => {
   // Store current status of all monitored services
   const [services, setServices] = useState([]);
-  
+
   // Track historical metrics for each service
   const [metrics, setMetrics] = useState({
-    successCount: {},    // Count of successful checks per URL
-    failureCount: {},    // Count of failed checks per URL
-    latencyHistory: {},  // Array of last 10 latency measurements per URL
+    successCount: {}, // Count of successful checks per URL
+    failureCount: {}, // Count of failed checks per URL
+    latencyHistory: {}, // Array of last 10 latency measurements per URL
   });
 
   /**
    * Check the health of a single URL
    * Uses HEAD request with no-cors mode for local testing
    * Measures latency using performance.now()
-   * 
+   *
    * @param {string} url - The URL to check
    * @returns {Object} Service status object with url, status, latency, timestamp
    */

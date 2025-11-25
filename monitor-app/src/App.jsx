@@ -1,13 +1,13 @@
 /**
  * Main Application Component for CECRE Monitoring Dashboard
- * 
+ *
  * Provides a tabbed interface for monitoring various aspects of the infrastructure:
  * - Dashboard: Combined view of services and Prometheus metrics
  * - Services: Real-time uptime monitoring for configured URLs
  * - Prometheus: Metrics from Prometheus server (pods, nodes, alerts, targets)
  * - Grafana: Embedded Grafana dashboards and visualizations
  * - Kubernetes: Cluster information, pods, nodes, services, deployments
- * 
+ *
  * @component
  * @module App
  */

@@ -1,16 +1,16 @@
 /**
  * Grafana Dashboard Component
- * 
+ *
  * Displays Grafana dashboards and their panel data within the monitoring app.
  * Allows users to select from available dashboards and view their metrics.
- * 
+ *
  * Features:
  * - List all available Grafana dashboards
  * - Select and display individual dashboard panels
  * - Fetch time-series data for dashboard panels
  * - Display metric labels and current values
  * - Auto-refresh capability
- * 
+ *
  * @component
  */
 
@@ -21,15 +21,15 @@ import "./GrafanaDashboard.css";
 const GrafanaDashboard = () => {
   // List of available Grafana dashboards
   const [dashboards, setDashboards] = useState([]);
-  const [selectedDashboard, setSelectedDashboard] = useState(null);  // Currently selected dashboard definition
-  const [dashboardData, setDashboardData] = useState(null);          // Panel data for selected dashboard
-  const [loading, setLoading] = useState(true);                      // Loading state
-  const [error, setError] = useState(null);                          // Error message
+  const [selectedDashboard, setSelectedDashboard] = useState(null); // Currently selected dashboard definition
+  const [dashboardData, setDashboardData] = useState(null); // Panel data for selected dashboard
+  const [loading, setLoading] = useState(true); // Loading state
+  const [error, setError] = useState(null); // Error message
 
   /**
    * Select a dashboard by UID and fetch its definition and panel data
    * Fetches data for the last hour by default
-   * 
+   *
    * @param {string} uid - Unique identifier of the dashboard in Grafana
    */
   const selectDashboard = useCallback(async (uid) => {

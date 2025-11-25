@@ -1,17 +1,17 @@
 /**
  * Prometheus Metrics Component
- * 
+ *
  * Displays real-time metrics from Prometheus server including:
  * - CPU usage by pod
- * - Memory usage by pod  
+ * - Memory usage by pod
  * - Pod and node counts
  * - HTTP request rates
  * - Active alerts and their status
  * - Scrape targets and their health
- * 
+ *
  * Fetches data from the backend API which proxies to Prometheus.
  * Auto-refreshes every 30 seconds to show current cluster state.
- * 
+ *
  * @component
  */
 
@@ -22,10 +22,10 @@ import "./PrometheusMetrics.css";
 const PrometheusMetrics = () => {
   // Store fetched metrics data from Prometheus queries
   const [metrics, setMetrics] = useState(null);
-  const [alerts, setAlerts] = useState([]);      // Active Prometheus alerts
-  const [targets, setTargets] = useState([]);    // Prometheus scrape targets
-  const [loading, setLoading] = useState(true);  // Loading state for UI
-  const [error, setError] = useState(null);      // Error message if fetch fails
+  const [alerts, setAlerts] = useState([]); // Active Prometheus alerts
+  const [targets, setTargets] = useState([]); // Prometheus scrape targets
+  const [loading, setLoading] = useState(true); // Loading state for UI
+  const [error, setError] = useState(null); // Error message if fetch fails
 
   /**
    * Fetch metrics, alerts, and targets from Prometheus API
