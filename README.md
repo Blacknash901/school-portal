@@ -67,36 +67,73 @@ AWS EC2 (t4g.medium ARM64)
 
 ### Local Development
 
+**Portal App:**
 ```bash
-# Install dependencies
+cd portal-app
 npm install
-
-# Start development server
 npm start
 ```
-
 Access at `http://localhost:3000`
+
+**Monitor App:**
+```bash
+cd monitor-app
+npm install
+npm run dev:all  # Runs both frontend and backend
+```
+Access at `http://localhost:5173`
 
 ### Environment Setup
 
-1. Copy `env.example` to `.env`
+1. Copy `portal-app/env.example` to `portal-app/.env`
 2. Fill in your Azure AD credentials and other configuration
-3. See `env.example` for all available options
+3. See `portal-app/env.example` for all available options
 
 ## 📁 Project Structure
 
 ```
 school-portal/
-├── src/                    # React application source
-│   ├── components/         # React components
-│   ├── auth/               # MSAL authentication
-│   ├── data/               # App definitions & role mappings
-│   └── utils/              # Utility functions
-├── public/                 # Static assets
-├── Dockerfile              # Production Docker image
-├── server.js               # Development server
-├── server-https.js         # Production HTTPS server
-└── env.example             # Environment variables template
+├── portal-app/             # Main Portal Application (v1.0.16)
+│   ├── src/                # React application source
+│   │   ├── components/     # React components
+│   │   ├── auth/           # MSAL authentication
+│   │   ├── data/           # App definitions & role mappings
+│   │   └── utils/          # Utility functions
+│   ├── public/             # Static assets
+│   ├── Dockerfile          # Production Docker image
+│   ├── server.js           # Development server
+│   ├── server-https.js     # Production HTTPS server
+│   └── env.example         # Environment variables template
+├── monitor-app/            # Monitoring Dashboard (v1.0.0)
+│   ├── src/                # React monitoring UI
+│   ├── server/             # Express backend for Prometheus/Grafana
+│   ├── k8s/                # Kubernetes manifests
+│   └── Dockerfile          # Monitoring app Docker image
+├── alertmanager-webhook/   # Email notification service
+│   ├── server.js           # Webhook for Alertmanager → Email
+│   ├── package.json        # Node.js dependencies
+│   └── Dockerfile          # Multi-platform webhook image
+├── deployment/
+│   └── ansible/            # Ansible playbooks for deployment
+│       ├── deploy-app.yml
+│       ├── deploy-monitor-app.yml
+│       ├── deploy-monitoring-stack.yml
+│       └── setup-infrastructure.yml
+├── infrastructure/
+│   └── terraform/          # AWS infrastructure as code
+│       ├── main.tf
+│       ├── modules/        # Terraform modules
+│       └── terraform.tfvars
+├── .github/workflows/      # CI/CD pipelines
+│   ├── deploy-complete.yml # Full deployment workflow
+│   └── build-*.yml         # Individual build jobs
+├── docs/                   # Project documentation
+│   ├── FINAL-PROJECT-SUMMARY.md
+│   ├── guides/             # Setup and configuration guides
+│   └── archived/           # Historical documentation
+├── CONTRIBUTING.md         # Contribution guidelines
+├── LICENSE                 # MIT License
+└── README.md               # This file
 ```
 
 ## ✨ Features
@@ -137,43 +174,87 @@ school-portal/
 
 ### Environment Variables
 
-Copy `env.example` to `.env` and configure:
+Copy `portal-app/env.example` to `portal-app/.env` and configure:
 
 ```bash
 # Azure AD Authentication
-REACT_APP_MSAL_CLIENT_ID=your-client-id
-REACT_APP_MSAL_TENANT_ID=your-tenant-id
+REACT_APP_MSAL_CLIENT_ID=your-azure-client-id-here
+REACT_APP_MSAL_TENANT_ID=your-azure-tenant-id-here
+REACT_APP_AZURE_CLIENT_ID=your-azure-client-id-here
+REACT_APP_AZURE_TENANT_ID=your-azure-tenant-id-here
 REACT_APP_REDIRECT_URI=http://localhost:3000
 
-# Optional: AWS S3 (for logging)
-REACT_APP_S3_BUCKET_NAME=your-bucket
+# AWS S3 Logging (Optional)
+REACT_APP_S3_BUCKET_NAME=your-bucket-name
 REACT_APP_S3_REGION=us-east-1
+REACT_APP_S3_ACCESS_KEY_ID=your-access-key
+REACT_APP_S3_SECRET_ACCESS_KEY=your-secret-key
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+AWS_REGION=us-east-1
+S3_BUCKET_NAME=your-bucket-name
 
-# Optional: Sentry (error tracking)
-REACT_APP_SENTRY_DSN=your-sentry-dsn
+# Sentry Error Tracking (Optional)
+REACT_APP_SENTRY_DSN=your-sentry-dsn-here
+REACT_APP_SENTRY_ENVIRONMENT=development
+REACT_APP_ENABLE_SENTRY=false
+SENTRY_DSN=your-sentry-dsn-here
+
+# WordPress RSS Feed
+REACT_APP_WORDPRESS_FEED_URL=https://devocecre.wordpress.com/feed
+
+# Google OAuth (Optional)
+REACT_APP_GOOGLE_CLIENT_ID=your-google-client-id-here
+REACT_APP_ENABLE_GOOGLE_LOGIN=false
+
+# Server Configuration
+NODE_ENV=development
+PORT=3000
+HTTPS_PORT=443
+CERT_PATH=/etc/letsencrypt/live/portal.cecre.net/fullchain.pem
+KEY_PATH=/etc/letsencrypt/live/portal.cecre.net/privkey.pem
 ```
+
+See `portal-app/env.example` for complete configuration options.
 
 ## 🐳 Docker
 
-### Build
+### Build Portal App
 
 ```bash
-docker build -t school-portal .
+cd portal-app
+docker build -t blacknash/cecre:latest .
 ```
 
-### Run
+### Build Monitor App
+
+```bash
+cd monitor-app
+docker build -t blacknash/monitor:latest .
+```
+
+### Build Alertmanager Webhook
+
+```bash
+cd alertmanager-webhook
+docker build -t blacknash/alertmanager-webhook:latest .
+```
+
+### Run Portal App
 
 ```bash
 docker run -d \
   -p 3000:3000 \
-  -p 3443:3443 \
-  --env-file .env \
-  school-portal
+  -p 443:443 \
+  --env-file portal-app/.env \
+  blacknash/cecre:latest
 ```
 
 ## 🧪 Testing
 
 ```bash
+cd portal-app
+
 # Run tests
 npm test
 
@@ -186,37 +267,63 @@ npm test -- --coverage
 
 ## 🏗️ Build
 
+**Portal App:**
 ```bash
-# Build for production
+cd portal-app
+npm run build
+```
+
+**Monitor App:**
+```bash
+cd monitor-app
 npm run build
 ```
 
 ## 📦 CI/CD
 
-This project includes GitHub Actions workflows that automatically:
+This project uses GitHub Actions for complete infrastructure and application deployment:
 
-- ✅ Run tests on pull requests
-- ✅ Build and push Docker images on merge to main
-- ✅ Support multi-architecture builds (ARM64 + AMD64)
+**Deploy Complete Stack Workflow** (`.github/workflows/deploy-complete.yml`):
+- ✅ **Job 1:** Deploy infrastructure with Terraform (AWS EC2, EBS, Security Groups)
+- ✅ **Job 2:** Build and deploy Portal App to Kubernetes
+- ✅ **Job 3:** Build Alertmanager Webhook (multi-arch: ARM64 + AMD64)
+- ✅ **Job 4:** Build and deploy Monitor App to Kubernetes
+- ✅ **Job 5:** Deploy monitoring stack (Prometheus, Grafana, Alertmanager)
 
-See `.github/workflows/ci-cd.yml` for details.
+**Deployment Flow:**
+```
+Terraform → Ansible → Docker Build → Kubernetes Deploy
+```
+
+See [Deploy Complete Workflow](.github/workflows/deploy-complete.yml) for details.
 
 ### GitHub Secrets Required
 
 Configure these secrets in GitHub repository settings:
 
-**Required:**
-
+**Infrastructure & Deployment:**
+- `AWS_ACCESS_KEY_ID` - AWS credentials for Terraform
+- `AWS_SECRET_ACCESS_KEY` - AWS secret key
+- `AWS_REGION` - AWS region (default: us-east-1)
+- `SSH_PRIVATE_KEY` - SSH key for EC2 access
+- `EC2_HOST` - EC2 instance public IP/DNS
 - `DOCKER_USERNAME` - Docker Hub username
 - `DOCKER_PASSWORD` - Docker Hub password/token
-- `REACT_APP_MSAL_CLIENT_ID` - Azure AD client ID
-- `REACT_APP_MSAL_TENANT_ID` - Azure AD tenant ID
-- `REACT_APP_AZURE_CLIENT_ID` - Azure client ID
-- `REACT_APP_AZURE_TENANT_ID` - Azure tenant ID
+
+**Portal Application:**
+- `AZURE_TENANT_ID` - Azure AD tenant ID (shared with Alertmanager)
+- `REACT_APP_MSAL_CLIENT_ID` - Azure AD app for user login
+- `AZURE_CLIENT_ID` - Azure AD app for Graph API
+- `AZURE_CLIENT_SECRET` - Client secret for Graph API
+- `SESSION_SECRET` - Express session encryption key
+- `MONGODB_URI` - MongoDB connection string
 - `REACT_APP_REDIRECT_URI` - Production redirect URI
 
-**Optional:**
+**Alertmanager Email Notifications:**
+- `AZURE_CLIENT_ID_AM` - Azure AD app for sending emails
+- `AZURE_CLIENT_SECRET_AM` - Client secret for email app
 
+**Optional:**
 - `REACT_APP_S3_BUCKET_NAME` - S3 bucket for logging
 - `REACT_APP_S3_REGION` - AWS region
 - `REACT_APP_S3_ACCESS_KEY_ID` - AWS access key
@@ -225,6 +332,8 @@ Configure these secrets in GitHub repository settings:
 - `REACT_APP_SENTRY_DSN` - Sentry DSN
 - `REACT_APP_ENABLE_SENTRY` - Enable Sentry (true/false)
 - `REACT_APP_GOOGLE_CLIENT_ID` - Google OAuth client ID
+
+**See [GitHub Secrets Reference](docs/guides/GITHUB-SECRETS-REFERENCE.md) for complete details.**
 
 ## 🤝 Contributing
 
@@ -235,7 +344,7 @@ Configure these secrets in GitHub repository settings:
 
 ## 📝 License
 
-[Your License Here]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
@@ -243,5 +352,6 @@ For issues or questions, please open an issue on GitHub.
 
 ---
 
-**Version:** 1.0.11  
-**Last Updated:** November 2024
+**Portal App Version:** 1.0.16  
+**Monitor App Version:** 1.0.0  
+**Last Updated:** November 2025
