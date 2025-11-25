@@ -1,86 +1,247 @@
-# GitHub Actions Deployment
+# CECRE Portal & Monitoring System
 
-This directory contains GitHub Actions workflows and documentation for automated deployment to personal servers.
+> **🎓 Final Project** - DevOps/Monitoring Academy  
+> A production-grade educational portal with comprehensive monitoring, alerting, and full infrastructure automation.
 
-## 📁 Files
+**Live Demo:** https://portal.cecre.net
 
-### Workflows
-- **`workflows/deploy-self-hosted.yml`** - Self-hosted runner deployment (recommended for personal servers)
-- **`workflows/deploy.yml`** - Ansible-based deployment (for servers with public IP)
-- **`workflows/docker-build.yml`** - Docker image build workflow
+[![Deploy Status](https://github.com/Blacknash901/school-portal/actions/workflows/deploy-complete.yml/badge.svg)](https://github.com/Blacknash901/school-portal/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-### Documentation
-- **`DEPLOYMENT-GUIDE.md`** - Complete deployment guide
-- **`SELF-HOSTED-RUNNER-SETUP.md`** - Self-hosted runner setup guide
-- **`SECRETS-SETUP.md`** - Step-by-step secrets setup guide
-- **`scripts/generate-secrets-list.sh`** - Helper script to list required secrets
+## 📚 Quick Links
+
+- **[🎯 Final Project Summary](docs/FINAL-PROJECT-SUMMARY.md)** - Complete project overview for academy submission
+- **[📸 Screenshots Guide](docs/SCREENSHOTS.md)** - Evidence and documentation requirements
+- **[🚨 Alertmanager Setup](docs/guides/ALERTMANAGER-SETUP.md)** - Email notification configuration
+- **[🤝 Contributing](CONTRIBUTING.md)** - Contribution guidelines
+- **[📄 License](LICENSE)** - MIT License
+
+---
+
+## 🎓 Academy Project Compliance
+
+This project fulfills **all required and bonus requirements** for the final academy project:
+
+| Requirement                        | Status                                        |
+| ---------------------------------- | --------------------------------------------- |
+| ✅ Application with metrics/alerts | Complete                                      |
+| ✅ Kubernetes deployment           | MicroK8s on AWS EC2                           |
+| ✅ Prometheus scraping             | 7+ scrape jobs configured                     |
+| ✅ Grafana dashboards              | Provisioned with datasources                  |
+| ✅ Alertmanager deployment         | Email notifications enabled                   |
+| ✅ Professional documentation      | README, LICENSE, CONTRIBUTING                 |
+| 🌟 Alertmanager notifications      | Email to portal_status_notification@cecre.net |
+| 🌟 Infrastructure as Code          | Terraform + Ansible                           |
+| 🌟 CI/CD Pipeline                  | GitHub Actions (4-stage workflow)             |
+
+**See [Final Project Summary](docs/FINAL-PROJECT-SUMMARY.md) for complete details.**
+
+---
+
+## 🏗️ System Architecture
+
+```
+GitHub Actions (CI/CD)
+        ↓
+AWS EC2 (t4g.medium ARM64)
+        ↓
+    MicroK8s
+        ↓
+    ┌───────┬──────────┬────────────┐
+    ↓       ↓          ↓            ↓
+  Portal  Monitor  Prometheus  Alertmanager
+   App     App      + Grafana
+```
+
+**Access Points:**
+
+- 🌐 Portal: https://portal.cecre.net/
+- 📊 Monitor: https://portal.cecre.net/monitor
+- 🔥 Prometheus: https://portal.cecre.net/prometheus
+- 📈 Grafana: https://portal.cecre.net/grafana (admin/admin123)
+- 🚨 Alertmanager: https://portal.cecre.net/alertmanager
+
+---
 
 ## 🚀 Quick Start
 
-1. **Set up GitHub secrets** (see `SECRETS-SETUP.md`)
-2. **Choose deployment method:**
-   - **Self-Hosted Runner** (recommended) → For personal servers without public IP
-   - **Ansible** → For servers with public IP
-3. **Deploy:**
-   - Manual: Go to Actions → Run workflow
-   - Automatic: Push to `main` branch
+### Local Development
 
-## 📚 Documentation
+```bash
+# Install dependencies
+npm install
 
-- **[Deployment Guide](DEPLOYMENT-GUIDE.md)** - Complete guide with all options
-- **[Self-Hosted Runner Setup](SELF-HOSTED-RUNNER-SETUP.md)** - How to set up self-hosted runner
-- **[Secrets Setup](SECRETS-SETUP.md)** - How to configure GitHub secrets
-- **[Ansible Playbooks](../deployment/ansible/PLAYBOOK-GUIDE.md)** - Ansible playbook details
+# Start development server
+npm start
+```
 
-## 🔧 Workflows
+Access at `http://localhost:3000`
 
-### deploy-self-hosted.yml (Recommended) ⭐
+### Environment Setup
 
-Deploys using self-hosted runner. Best for:
-- Personal servers without public IP
-- Local/private networks
-- Simple setup
+1. Copy `env.example` to `.env`
+2. Fill in your Azure AD credentials and other configuration
+3. See `env.example` for all available options
 
-**Features:**
-- Runs on your personal server
-- No public IP needed
-- Generates `.env` from GitHub secrets
-- Runs Ansible playbooks locally
-- Supports: `app`, `all`, `monitoring` deployment types
+## 📁 Project Structure
 
-### deploy.yml (Ansible)
+```
+school-portal/
+├── src/                    # React application source
+│   ├── components/         # React components
+│   ├── auth/               # MSAL authentication
+│   ├── data/               # App definitions & role mappings
+│   └── utils/              # Utility functions
+├── public/                 # Static assets
+├── Dockerfile              # Production Docker image
+├── server.js               # Development server
+├── server-https.js         # Production HTTPS server
+└── env.example             # Environment variables template
+```
 
-Deploys using Ansible via SSH. Best for:
-- Servers with public IP
-- EC2/VM instances
-- Full infrastructure management
+## ✨ Features
 
-**Features:**
-- Generates `.env` from GitHub secrets
-- Generates inventory file from GitHub secrets
-- Runs Ansible playbooks via SSH
-- Supports: `app`, `all`, `monitoring` deployment types
+### Authentication & Authorization
 
-## 🎯 Which Workflow to Use?
+- ✅ Microsoft Azure AD (MSAL) authentication
+- ✅ Role-based access control (RBAC)
+- ✅ Group-based app visibility
+- ✅ Secure session management
 
-| Use Case | Workflow |
-|----------|----------|
-| Personal server (no public IP) | `deploy-self-hosted.yml` ⭐ |
-| Server with public IP | `deploy.yml` |
-| MicroK8s on EC2/VM | `deploy.yml` |
-| Need infrastructure setup | Either (both support) |
+### User Roles
 
-## 📋 Required Secrets
+- **Students:** Full app suite (Office, Teams, Moodle, etc.)
+- **Teachers:** Teaching tools + admin apps
+- **Parents:** Communication apps (Moodle, Teams, Outlook)
+- **Guests:** Basic access (Moodle, Teams)
+- **Staff/Admins:** Full administrative access
 
-See `SECRETS-SETUP.md` for complete list.
+### User Interface
 
-**Minimum required:**
-- Application secrets (Azure AD)
-- Docker Hub credentials
-- Deployment configuration (IP, domain, etc.)
+- ✅ Beautiful dark/light theme toggle
+- ✅ Smooth animations and transitions
+- ✅ Responsive design (mobile-friendly)
+- ✅ Organized app grid with custom icons
+- ✅ WordPress news feed integration
 
-## 🔗 Related
+### Technical Features
 
-- [Docker Build Workflow](workflows/docker-build.yml)
-- [Ansible Playbooks](../deployment/ansible/)
-- [Environment Variables](../docs/guides/ENVIRONMENT-VARIABLES.md)
+- ✅ Production-ready with Docker
+- ✅ Health checks and monitoring
+- ✅ Rate limiting protection
+- ✅ SSL/TLS support
+- ✅ Error tracking with Sentry
+- ✅ S3 logging integration
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Copy `env.example` to `.env` and configure:
+
+```bash
+# Azure AD Authentication
+REACT_APP_MSAL_CLIENT_ID=your-client-id
+REACT_APP_MSAL_TENANT_ID=your-tenant-id
+REACT_APP_REDIRECT_URI=http://localhost:3000
+
+# Optional: AWS S3 (for logging)
+REACT_APP_S3_BUCKET_NAME=your-bucket
+REACT_APP_S3_REGION=us-east-1
+
+# Optional: Sentry (error tracking)
+REACT_APP_SENTRY_DSN=your-sentry-dsn
+```
+
+## 🐳 Docker
+
+### Build
+
+```bash
+docker build -t school-portal .
+```
+
+### Run
+
+```bash
+docker run -d \
+  -p 3000:3000 \
+  -p 3443:3443 \
+  --env-file .env \
+  school-portal
+```
+
+## 🧪 Testing
+
+```bash
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm test -- --watch
+
+# Generate coverage report
+npm test -- --coverage
+```
+
+## 🏗️ Build
+
+```bash
+# Build for production
+npm run build
+```
+
+## 📦 CI/CD
+
+This project includes GitHub Actions workflows that automatically:
+
+- ✅ Run tests on pull requests
+- ✅ Build and push Docker images on merge to main
+- ✅ Support multi-architecture builds (ARM64 + AMD64)
+
+See `.github/workflows/ci-cd.yml` for details.
+
+### GitHub Secrets Required
+
+Configure these secrets in GitHub repository settings:
+
+**Required:**
+
+- `DOCKER_USERNAME` - Docker Hub username
+- `DOCKER_PASSWORD` - Docker Hub password/token
+- `REACT_APP_MSAL_CLIENT_ID` - Azure AD client ID
+- `REACT_APP_MSAL_TENANT_ID` - Azure AD tenant ID
+- `REACT_APP_AZURE_CLIENT_ID` - Azure client ID
+- `REACT_APP_AZURE_TENANT_ID` - Azure tenant ID
+- `REACT_APP_REDIRECT_URI` - Production redirect URI
+
+**Optional:**
+
+- `REACT_APP_S3_BUCKET_NAME` - S3 bucket for logging
+- `REACT_APP_S3_REGION` - AWS region
+- `REACT_APP_S3_ACCESS_KEY_ID` - AWS access key
+- `REACT_APP_S3_SECRET_ACCESS_KEY` - AWS secret key
+- `REACT_APP_WORDPRESS_FEED_URL` - WordPress feed URL
+- `REACT_APP_SENTRY_DSN` - Sentry DSN
+- `REACT_APP_ENABLE_SENTRY` - Enable Sentry (true/false)
+- `REACT_APP_GOOGLE_CLIENT_ID` - Google OAuth client ID
+
+## 🤝 Contributing
+
+1. Create a feature branch
+2. Make your changes
+3. Run tests: `npm test`
+4. Submit a pull request
+
+## 📝 License
+
+[Your License Here]
+
+## 🆘 Support
+
+For issues or questions, please open an issue on GitHub.
+
+---
+
+**Version:** 1.0.11  
+**Last Updated:** November 2024
