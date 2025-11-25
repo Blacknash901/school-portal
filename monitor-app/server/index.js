@@ -46,7 +46,10 @@ if (hasFrontendBuild) {
   // Catch-all route for SPA (but only for HTML requests, not static assets)
   app.get("*", (req, res, next) => {
     // Skip API routes and static assets (js, css, images, fonts, etc.)
-    if (req.path.includes("/api") || req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)) {
+    if (
+      req.path.includes("/api") ||
+      req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)
+    ) {
       return next();
     }
     res.sendFile(path.join(distPath, "index.html"));
