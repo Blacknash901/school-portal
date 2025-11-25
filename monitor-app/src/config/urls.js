@@ -31,10 +31,10 @@ export const API_ENDPOINTS = {
   GRAFANA_SNAPSHOT: `${API_BASE_URL}/api/grafana/snapshot`,
 
   // Kubernetes endpoints
-  K8S_CLUSTER_INFO: `${API_BASE_URL}/api/k8s/cluster`,
-  K8S_NODES: `${API_BASE_URL}/api/k8s/nodes`,
-  K8S_PODS: `${API_BASE_URL}/api/k8s/pods`,
-  K8S_SERVICES: `${API_BASE_URL}/api/k8s/services`,
+  K8S_CLUSTER_INFO: `${API_BASE_URL}/api/kubernetes/cluster`,
+  K8S_NODES: `${API_BASE_URL}/api/kubernetes/nodes`,
+  K8S_PODS: `${API_BASE_URL}/api/kubernetes/pods`,
+  K8S_SERVICES: `${API_BASE_URL}/api/kubernetes/services`,
 
   // Service monitoring
   SERVICE_STATUS: `${API_BASE_URL}/api/services/status`,
