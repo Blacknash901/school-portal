@@ -132,24 +132,40 @@
       failed_when: false
       changed_when: false
 
-    - name: Stop MicroK8s if installed (to release file handles)
+    - name: Check if EBS volume is already mounted
+      shell: mount | grep "{{ ebs_device }}"
+      register: ebs_mounted
+      failed_when: false
+      changed_when: false
+
+    - name: Stop MicroK8s if installed and volume not mounted (to release file handles)
       command: microk8s stop
       when:
         - microk8s_installed.rc is defined
         - microk8s_installed.rc == 0
+        - ebs_mounted.rc != 0
       ignore_errors: yes
+
+    - name: Wait for MicroK8s to fully stop
+      wait_for:
+        timeout: 30
+      when:
+        - microk8s_installed.rc is defined
+        - microk8s_installed.rc == 0
+        - ebs_mounted.rc != 0
 
     - name: Create ext4 filesystem on EBS volume
       filesystem:
         fstype: ext4
         dev: "{{ ebs_device }}"
+      when: ebs_mounted.rc != 0
 
     - name: Create mount point for MicroK8s data
       file:
         path: /var/snap/microk8s/common
         state: directory
         mode: "0755"
-        recurse: yes
+      when: ebs_mounted.rc != 0
 
     - name: Mount EBS volume
       mount:
@@ -158,6 +174,15 @@
         fstype: ext4
         opts: defaults,nofail
         state: mounted
+      when: ebs_mounted.rc != 0
+
+    - name: Ensure EBS volume is in fstab (even if already mounted)
+      mount:
+        path: /var/snap/microk8s/common
+        src: "{{ ebs_device }}"
+        fstype: ext4
+        opts: defaults,nofail
+        state: present
 
     # ============================================================
     # Backup Tools
