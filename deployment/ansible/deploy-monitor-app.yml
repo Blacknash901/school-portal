@@ -21,6 +21,25 @@
     app_name: "monitor-app"
 
   tasks:
+    - name: Check if MicroK8s is running
+      command: /snap/bin/microk8s status --wait-ready --timeout 10
+      register: microk8s_status
+      failed_when: false
+      changed_when: false
+
+    - name: Start MicroK8s if not running
+      command: /snap/bin/microk8s start
+      when: microk8s_status.rc != 0
+
+    - name: Wait for MicroK8s to be ready
+      command: /snap/bin/microk8s status --wait-ready
+      when: microk8s_status.rc != 0
+      changed_when: false
+      retries: 10
+      delay: 10
+      register: microk8s_ready
+      until: microk8s_ready.rc == 0
+
     - name: Create monitoring namespace
       command: /snap/bin/microk8s kubectl create namespace {{ monitoring_namespace }}
       register: create_ns
