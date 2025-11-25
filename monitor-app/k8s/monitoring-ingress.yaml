@@ -4,37 +4,38 @@ metadata:
   name: monitoring-ingress
   namespace: monitoring
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 spec:
-  ingressClassName: nginx
+  ingressClassName: public
   rules:
     - host: portal.cecre.net
       http:
         paths:
-          - path: /grafana
-            pathType: Prefix
+          - path: /grafana(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: grafana
                 port:
                   number: 3000
-          - path: /prometheus
-            pathType: Prefix
+          - path: /prometheus(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: prometheus
                 port:
                   number: 9090
-          - path: /alertmanager
-            pathType: Prefix
+          - path: /alertmanager(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: alertmanager
                 port:
                   number: 9093
-          - path: /monitor
-            pathType: Prefix
+          - path: /monitor(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: monitor-app

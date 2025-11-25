@@ -157,7 +157,7 @@ spec:
             - "--config.file=/etc/alertmanager/alertmanager.yml"
             - "--storage.path=/alertmanager"
             - "--web.external-url=https://portal.cecre.net/alertmanager"
-            - "--web.route-prefix=/"
+            - "--web.route-prefix=/alertmanager"
           ports:
             - containerPort: 9093
               name: web
@@ -168,11 +168,11 @@ spec:
               mountPath: /alertmanager
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 50m
+              memory: 64Mi
             limits:
-              cpu: 500m
-              memory: 256Mi
+              cpu: 200m
+              memory: 128Mi
       volumes:
         - name: config-volume
           configMap:
