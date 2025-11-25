@@ -36,6 +36,10 @@ jobs:
         working-directory: ./monitor-app
         run: npm ci
 
+      - name: Run linter
+        working-directory: ./monitor-app
+        run: npm run lint
+
       - name: Build frontend
         working-directory: ./monitor-app
         run: npm run build
@@ -46,8 +50,10 @@ jobs:
 
       - name: Test summary
         run: |
-          echo "✅ Tests passed successfully!"
-          echo "🏗️ Build completed"
+          echo "✅ All checks passed successfully!"
+          echo "🔍 Lint: Passed"
+          echo "🏗️ Build: Completed"
+          echo "🧪 Tests: Passed"
 
   build-and-push:
     name: Build and Push Monitor App

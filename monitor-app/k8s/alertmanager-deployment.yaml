@@ -48,13 +48,21 @@ metadata:
   namespace: monitoring
 type: Opaque
 stringData:
-  # Azure AD App Registration credentials for sending emails via Microsoft Graph API
-  # These should be injected from GitHub Secrets during deployment
-  # Uses same TENANT_ID as portal, but different CLIENT_ID and CLIENT_SECRET (with _AM suffix)
-  AZURE_TENANT_ID: "${AZURE_TENANT_ID}"
-  AZURE_CLIENT_ID_AM: "${AZURE_CLIENT_ID_AM}"
-  AZURE_CLIENT_SECRET_AM: "${AZURE_CLIENT_SECRET_AM}"
-  EMAIL_TO: "portal_status_notification@cecre.net"
+  # IMPORTANT: This Secret should NOT be applied directly from this file.
+  # It is created by the Ansible playbook: deployment/ansible/deploy-monitoring-stack.yml
+  # The playbook injects actual values from GitHub Secrets:
+  #   - AZURE_TENANT_ID (shared with portal)
+  #   - AZURE_CLIENT_ID_AM (Alertmanager-specific App Registration)
+  #   - AZURE_CLIENT_SECRET_AM (Alertmanager-specific App Registration secret)
+  #   - EMAIL_TO (recipient email address)
+  #
+  # If you need to manually create this secret for testing, use:
+  #   kubectl create secret generic alertmanager-webhook-secrets \
+  #     --from-literal=AZURE_TENANT_ID="your-tenant-id" \
+  #     --from-literal=AZURE_CLIENT_ID_AM="your-client-id" \
+  #     --from-literal=AZURE_CLIENT_SECRET_AM="your-client-secret" \
+  #     --from-literal=EMAIL_TO="portal_status_notification@cecre.net" \
+  #     -n monitoring
 ---
 apiVersion: apps/v1
 kind: Deployment
