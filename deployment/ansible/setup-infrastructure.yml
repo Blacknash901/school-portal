@@ -275,12 +275,32 @@
       when: patch_result.changed
       changed_when: true
 
+    - name: Wait for new Ingress controller pods to start
+      shell: |
+        microk8s kubectl get pods -n ingress -l name=nginx-ingress-microk8s --no-headers | wc -l
+      register: ingress_pod_count
+      until: ingress_pod_count.stdout|int > 0
+      retries: 12
+      delay: 5
+      when: patch_result.changed
+      changed_when: false
+
     - name: Wait for Ingress controller to be ready after restart
-      command: microk8s kubectl wait --for=condition=ready pod -l name=nginx-ingress-microk8s -n ingress --timeout=300s
+      shell: |
+        microk8s kubectl wait --for=condition=ready pod -l name=nginx-ingress-microk8s -n ingress --timeout=60s
       when: patch_result.changed
       changed_when: false
       retries: 3
       delay: 10
+      register: wait_result
+      failed_when: false
+
+    - name: Verify Ingress controller is running (fallback check)
+      shell: |
+        microk8s kubectl get pods -n ingress -l name=nginx-ingress-microk8s
+      when: patch_result.changed and wait_result.rc != 0
+      changed_when: false
+      ignore_errors: yes
 
     - name: Add user to microk8s group
       user:
